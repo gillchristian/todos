@@ -1,0 +1,6 @@
+TODO
+- Refactor expanded lot relationships
+- Refactor ExpandedLot component
+
+Accomplished
+-
