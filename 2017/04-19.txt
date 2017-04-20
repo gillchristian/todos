@@ -1,0 +1,8 @@
+TODO
+- Refactor ExpandedLot component
+- Test expanded lot relationships
+- Create roadmap for Luis
+- Document CM
+
+Accomplished
+- Introduce Luis to CM
