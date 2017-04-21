@@ -1,0 +1,7 @@
+TODO
+- ExpandedLot for Auctions
+- Create roadmap for Luis
+- Document CM
+
+Accomplished
+- Refactor ExpandedLot component
