@@ -12,23 +12,18 @@ import (
 	"time"
 )
 
-type file struct {
-	name    string
-	modTime time.Time
+type files []os.FileInfo
+
+func (fs files) Len() int {
+	return len(fs)
 }
 
-type files []file
-
-func (s files) Len() int {
-	return len(s)
+func (fs files) Swap(i, j int) {
+	fs[i], fs[j] = fs[j], fs[i]
 }
 
-func (s files) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s files) Less(i, j int) bool {
-	return s[i].modTime.Before(s[j].modTime)
+func (fs files) Less(i, j int) bool {
+	return fs[i].ModTime().Before(fs[j].ModTime())
 }
 
 func readDir(path string) (files, error) {
@@ -42,7 +37,8 @@ func readDir(path string) (files, error) {
 
 	for _, f := range fs {
 		if !f.IsDir() {
-			todoFs = append(todoFs, file{f.Name(), f.ModTime()})
+
+			todoFs = append(todoFs, f)
 		}
 	}
 
@@ -67,14 +63,13 @@ func createTodayFile(path string) {
 		log.Fatal(err)
 	}
 
-	lastFilePath := dirPath + "/" + fs[len(fs)-1].name
+	lastFilePath := dirPath + "/" + fs[len(fs)-1].Name()
 	b, err := ioutil.ReadFile(lastFilePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	content := strings.SplitAfter(string(b), "Accomplished")[0]
-	content += "\n-"
 
 	f, err := os.Create(path)
 	if err != nil {
