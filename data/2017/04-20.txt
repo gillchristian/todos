@@ -1,7 +1,0 @@
-TODO
-- Refactor ExpandedLot component
-- Create roadmap for Luis
-- Document CM
-
-Accomplished
-- Test expanded lot relationships
