@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/user"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,31 +48,45 @@ func readDir(path string) (files, error) {
 	return todoFs, nil
 }
 
+func sanitizePath(path string) string {
+	if !filepath.IsAbs(path) {
+		home := homeDir()
+		path = strings.Replace(path, "$HOME", home, 1)
+		path = strings.Replace(path, "~", home, 1)
+	}
+
+	return filepath.Clean(path)
+}
+
+func todaysPath(basePath string) string {
+	return sanitizePath(basePath + "/" + todaysFilename())
+}
+
 // PrintTodos prints today's to-do file
-func PrintTodos() {
-	path := homeDir() + "/.todos/data/" + todaysFilename()
+func PrintTodos(basePath string) {
+	path := todaysPath(basePath)
 	if !exists(path) {
-		createTodayFile(path)
+		createTodayFile(basePath)
 	}
 	printFile(path)
 }
 
-func createTodayFile(path string) {
-	dirPath := homeDir() + "/.todos/data/" + currentYear()
+func createTodayFile(basePath string) {
+	dirPath := sanitizePath(basePath + "/" + currentYear())
 	fs, err := readDir(dirPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	lastFilePath := dirPath + "/" + fs[len(fs)-1].Name()
-	b, err := ioutil.ReadFile(lastFilePath)
+	lastTodo := dirPath + "/" + fs[len(fs)-1].Name()
+	b, err := ioutil.ReadFile(lastTodo)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	content := strings.SplitAfter(string(b), "Accomplished")[0]
 
-	f, err := os.Create(path)
+	f, err := os.Create(todaysPath(basePath))
 	if err != nil {
 		log.Fatal(err)
 	}
