@@ -1,6 +1,0 @@
-TODO
-- Create roadmap for Luis
-- Document CM
-
-Accomplished
-- ExpandedLot for Auctions
