@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+type TodoFile struct {
+	todos        []string
+	accomplished []string
+	path         string
+	content      string
+}
+
 type files []os.FileInfo
 
 func (fs files) Len() int {
@@ -27,6 +34,14 @@ func (fs files) Less(i, j int) bool {
 	return fs[i].ModTime().Before(fs[j].ModTime())
 }
 
+func AddTodo(basePath, todo string) error {
+	path := todaysPath(basePath)
+
+	fmt.Printf("Adding: %v - to: %v\n", todo, path)
+
+	return nil
+}
+
 // PrintTodos prints today's to-do file
 func PrintTodos(basePath string) {
 	path := todaysPath(basePath)
@@ -34,6 +49,15 @@ func PrintTodos(basePath string) {
 		createTodayFile(basePath)
 	}
 	printFile(path)
+}
+
+func parseTodoFile(path string) ([]string, []string) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	content := string(b)
 }
 
 // createTodayFile creates today's to-do file.
