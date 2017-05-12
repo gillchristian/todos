@@ -1,0 +1,11 @@
+- add todays file if it wasnt added
+  - copies last day to-dos to it
+- manage ONLY todays to-dos
+  - complete to-do
+  - add to-do
+- to-do's structure
+  - ~/.todos
+    |__ /2017
+      |__ /04-21.txt
+      |__ /04-21.txt
+      |__ ...

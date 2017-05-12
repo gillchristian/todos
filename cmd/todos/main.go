@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gillchristian/todos"
@@ -26,8 +27,32 @@ func main() {
 		cli.StringFlag{
 			Name:        "dir, d",
 			Value:       "$HOME/.todos",
-			Usage:       "todos directory `PATH`",
+			Usage:       "todos directory `PATH`.",
 			Destination: &path,
+		},
+	}
+
+	app.Commands = []cli.Command{
+		{
+			Name:    "add",
+			Aliases: []string{"a"},
+			Usage:   "add a new to-do to today's list",
+			Action: func(c *cli.Context) error {
+				if c.NArg() > 0 {
+					todos.AddTodo(path, c.Args()[0])
+				} else {
+					fmt.Println("Can't add something if it's nothing ¯\\_(ツ)_/¯")
+				}
+
+				return nil
+			},
+		},
+		{
+			Name:  "init",
+			Usage: "initializes the TODO's directory and creates the first to-do file",
+			Action: func(c *cli.Context) error {
+				return todos.Init()
+			},
 		},
 	}
 
