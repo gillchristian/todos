@@ -1,89 +1,78 @@
 package todos
 
 import (
-	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
+	"github.com/pkg/errors"
 )
 
-type files []os.FileInfo
-
-func (fs files) Len() int {
-	return len(fs)
+type TodoFile struct {
+	todos   []string
+	accomps []string
+	year    string
+	name    string
+	content string
 }
 
-func (fs files) Swap(i, j int) {
-	fs[i], fs[j] = fs[j], fs[i]
-}
+var red *color.Color = color.New(color.FgRed, color.Bold)
+var green *color.Color = color.New(color.FgGreen, color.Bold)
 
-func (fs files) Less(i, j int) bool {
-	return fs[i].ModTime().Before(fs[j].ModTime())
-}
+func Init(dirPath string) (string, error) {
+	dir := sanitizePath(dirPath)
 
-// PrintTodos prints today's to-do file
-func PrintTodos(basePath string) {
-	path := todaysPath(basePath)
-	if !exists(path) {
-		createTodayFile(basePath)
-	}
-	printFile(path)
-}
-
-// createTodayFile creates today's to-do file.
-// TODO section is copied from the last to-do file present.
-func createTodayFile(basePath string) {
-
-	// TODO: make it work for last year files.
-
-	currentYear := strconv.Itoa(time.Now().Year())
-	dirPath := sanitizePath(basePath + "/" + currentYear)
-	fs, err := readDir(dirPath)
-	if err != nil {
-		log.Fatal(err)
+	if err := os.Mkdir(dir, 0755); err != nil {
+		if os.IsExist(err) {
+			return "", errors.New("Cannot initialize TODO at " + red.Sprint(dirPath) + ", already exists.")
+		}
+		return "", err
 	}
 
-	lastTodo := dirPath + "/" + fs[len(fs)-1].Name()
-	b, err := ioutil.ReadFile(lastTodo)
-	if err != nil {
-		log.Fatal(err)
+	now := time.Now()
+
+	return TodoFile{
+		year: now.Format("2006"),
+		name: now.Format("01-02.txt"),
+	}.Create(dir)
+}
+
+func (t TodoFile) Create(dirPath string) (string, error) {
+	dir := sanitizePath(dirPath + "/" + t.year)
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.Mkdir(dir, 0755); err != nil {
+			return "", errors.Wrap(err, "Cannot create directory:")
+		}
 	}
 
-	content := strings.SplitAfter(string(b), "Accomplished")[0]
+	filePath := sanitizePath(dir + "/" + t.name)
 
-	f, err := os.Create(todaysPath(basePath))
+	f, err := os.Create(filePath)
 	if err != nil {
-		log.Fatal(err)
+		return "", errors.Wrap(err, "Cannot create file:")
 	}
 	defer f.Close()
-	_, err = f.Write([]byte(content))
+
+	_, err = f.Write([]byte("TODO\n\nAccomplished"))
+	if err != nil {
+		return "", errors.Wrap(err, "Cannot write to file:")
+	}
+
+	return filePath, nil
+}
+
+// homeDir retrieves the home directory path for the current user.
+func homeDir() string {
+	usr, err := user.Current()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Printf("Created today's to-do file: %s\n\n", todaysFilename())
-}
-
-// printFile prints a file content to the console.
-func printFile(path string) {
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(string(b))
-}
-
-// getTodaysFilename generates todo's filename for today.
-// Format: "<year>/<month>-<day>.txt"
-func todaysFilename() string {
-	return time.Now().Format("2006/01-02.txt")
+	return usr.HomeDir
 }
 
 // sanitizePath makes sure a path is absolute and clean.
@@ -100,45 +89,4 @@ func sanitizePath(path string) string {
 	}
 
 	return filepath.Clean(path)
-}
-
-// todaysPath generates a sanitized path to what should be today's to-do file.
-func todaysPath(basePath string) string {
-	return sanitizePath(basePath + "/" + todaysFilename())
-}
-
-// exists checks whether a file exists or not.
-func exists(name string) bool {
-	_, err := os.Stat(name)
-	return !os.IsNotExist(err)
-}
-
-// homeDir retrieves the home directory path for the current user.
-func homeDir() string {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	return usr.HomeDir
-}
-
-// readDir walks a directory and returns a list of all files sorted DESC by ModTime.
-func readDir(path string) (files, error) {
-	var todoFs files
-
-	fs, err := ioutil.ReadDir(path)
-
-	if err != nil {
-		return files{}, err
-	}
-
-	for _, f := range fs {
-		if !f.IsDir() {
-			todoFs = append(todoFs, f)
-		}
-	}
-
-	sort.Sort(todoFs)
-
-	return todoFs, nil
 }
