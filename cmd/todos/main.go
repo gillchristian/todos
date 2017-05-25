@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var version = "master"
+var version = "0.0.1"
 
 var red *color.Color = color.New(color.FgRed, color.Bold)
 var green *color.Color = color.New(color.FgGreen, color.Bold)
@@ -45,6 +45,7 @@ func main() {
 
 				if c.NArg() > 0 {
 					dir = c.Args()[0]
+					fmt.Printf("Initializing on: %v.\n", red.Sprint(dir))
 				} else {
 					dir = c.GlobalString("dir")
 					fmt.Printf("Initializing on default directory: %v.\n", red.Sprint(dir))
