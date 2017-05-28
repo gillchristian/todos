@@ -52,3 +52,22 @@ $ td report <week|month|year> -o <FILE> # write the report to <FILE>
 ```bash
 alias td="td --dir ~/Desktop/todos"
 ```
+
+## TO-DO
+
+- [x] `$ td`
+- [x] `$ td init`
+- [x] `$ td list`
+- [ ] `$ td list last`
+- [ ] `$ td list <date>`
+- [ ] `$ td add <todo item>`
+- [ ] `$ td done [I]`
+- [ ] `$ td rm`
+- [ ] `$ td report <week|month|year>`
+- [ ] Create today's file when not found (using yesterday's TODOs).
+- [ ] Feed back messages:
+  - [ ] No TODOs (well done! & suggest to use `$ td add <todo item>`).
+  - [ ] No Accomplished (mmm! & suggest to use `$ td done`).
+  - [ ] No items (both TODOs & Accomplished suggestions).
+- [ ] Add tests.
+
