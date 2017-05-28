@@ -1,4 +1,4 @@
-// Package todos handles creatio of TODO files and adding and completting TODOS.
+// Package todos handles creation of TODO files and adding and completting todos.
 package todos
 
 import (
@@ -13,6 +13,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+var red *color.Color = color.New(color.FgRed, color.Bold)
+var green *color.Color = color.New(color.FgGreen, color.Bold)
+
 // TODO: export properties too (?)
 
 // TodoFile stores the data of a TODO file.
@@ -25,8 +28,10 @@ type TodoFile struct {
 	basePath string
 }
 
-var red *color.Color = color.New(color.FgRed, color.Bold)
-var green *color.Color = color.New(color.FgGreen, color.Bold)
+// New creates a new TodoFile with path as the TODO's base path.
+func New(path string) TodoFile {
+	return TodoFile{basePath: path}
+}
 
 // Dir returns the TodoFile directory path ("<base-path>/<year>").
 // If t.year is missing, it will assigend first to the current year.
@@ -54,6 +59,7 @@ func (t *TodoFile) Path() (string, error) {
 }
 
 // Create creates a todo file at "<t.basePath>/<t.year>/<t.name>".
+// Asumes TODO's base path has already been created.
 func (t TodoFile) Create() (string, error) {
 	dir, err := t.Dir()
 
@@ -86,7 +92,7 @@ func (t TodoFile) Create() (string, error) {
 	return filePath, nil
 }
 
-// Init initializes the TODOS directory and creates a TodoFile at today's path.
+// Init initializes the TODO's directory and creates a TodoFile at today's path.
 func Init(dirPath string) (string, error) {
 	t := TodoFile{
 		basePath: sanitizePath(dirPath),
@@ -106,7 +112,7 @@ func Init(dirPath string) (string, error) {
 func homeDir() string {
 	usr, err := user.Current()
 	if err != nil {
-		log.Fatal(err) // TODO: (?)
+		log.Fatal(err)
 	}
 	return usr.HomeDir
 }
