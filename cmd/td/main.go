@@ -19,19 +19,19 @@ func main() {
 
 	app := cli.NewApp()
 
-	app.Name = "todos"
+	app.Name = "td"
 
 	app.Version = version
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
-	app.Usage = "This is a TO-DO's app written in Go"
+	app.Usage = "A to-do's app written in Go. Inspired on https://goo.gl/j1dQ4M"
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:        "dir, d",
 			Value:       "~/.todos",
-			Usage:       "todos directory `PATH`.",
+			Usage:       "td directory `PATH`.",
 			Destination: &path,
 		},
 	}
@@ -39,7 +39,7 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:  "init",
-			Usage: "initializes the TODO's directory and creates the first to-do file",
+			Usage: "initializes the TD's directory and creates the first to-do file",
 			Action: func(c *cli.Context) error {
 				var dir string
 
