@@ -18,7 +18,7 @@ var green *color.Color = color.New(color.FgGreen, color.Bold)
 
 // TODO: export properties too (?)
 
-// TodoFile stores the data of a TODO file.
+// TodoFile stores the data of a to-do file.
 type TodoFile struct {
 	todos    []string
 	accomps  []string
@@ -26,11 +26,6 @@ type TodoFile struct {
 	name     string
 	content  string
 	basePath string
-}
-
-// New creates a new TodoFile with path as the TODO's base path.
-func New(path string) TodoFile {
-	return TodoFile{basePath: path}
 }
 
 // Dir returns the TodoFile directory path ("<base-path>/<year>").
@@ -59,7 +54,7 @@ func (t *TodoFile) Path() (string, error) {
 }
 
 // Create creates a todo file at "<t.basePath>/<t.year>/<t.name>".
-// Asumes TODO's base path has already been created.
+// Asumes TD's base path has already been created.
 func (t TodoFile) Create() (string, error) {
 	dir, err := t.Dir()
 
@@ -92,7 +87,12 @@ func (t TodoFile) Create() (string, error) {
 	return filePath, nil
 }
 
-// Init initializes the TODO's directory and creates a TodoFile at today's path.
+// New creates a new TodoFile with path as the TD's base path.
+func New(path string) TodoFile {
+	return TodoFile{basePath: path}
+}
+
+// Init initializes the TD's directory and creates a TodoFile at today's path.
 func Init(dirPath string) (string, error) {
 	t := TodoFile{
 		basePath: sanitizePath(dirPath),
@@ -100,7 +100,7 @@ func Init(dirPath string) (string, error) {
 
 	if err := os.Mkdir(t.basePath, 0755); err != nil {
 		if os.IsExist(err) {
-			return "", errors.New("Cannot initialize TODO at " + red.Sprint(dirPath) + ", already exists.")
+			return "", errors.Errorf("Cannot initialize TD at %v, already exists.", red.Sprint(dirPath))
 		}
 		return "", err
 	}
@@ -112,6 +112,7 @@ func Init(dirPath string) (string, error) {
 func homeDir() string {
 	usr, err := user.Current()
 	if err != nil {
+		// no intention of handling user lookup errors
 		log.Fatal(err)
 	}
 	return usr.HomeDir
