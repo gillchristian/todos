@@ -10,33 +10,31 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: export properties too (?)
-
 // TodoFile stores the data of a to-do file and has the relevant methods to interact with it.
 type TodoFile struct {
-	todos    []string
-	accomps  []string
-	year     string
-	name     string
-	content  string
-	basePath string
+	Todos    []string
+	Accomps  []string
+	Year     string
+	Name     string
+	Content  string
+	BasePath string
 }
 
 // New creates a new TodoFile with path as the TD's base path.
 func New(path string) TodoFile {
-	return TodoFile{basePath: path}
+	return TodoFile{BasePath: path}
 }
 
 // Dir returns the TodoFile directory path ("<base-path>/<year>").
 // If t.year is missing, it will assigend first to the current year.
 func (t *TodoFile) Dir() (string, error) {
-	if t.basePath == "" {
+	if t.BasePath == "" {
 		return "", errors.New("basePath missing")
 	}
-	if t.year == "" {
-		t.year = time.Now().Format("2006")
+	if t.Year == "" {
+		t.Year = time.Now().Format("2006")
 	}
-	return sanitizePath(t.basePath + "/" + t.year), nil
+	return sanitizePath(t.BasePath + "/" + t.Year), nil
 }
 
 // Path returns the TodoFile path ("<base-path>/<year>/<month>-<day>.txt").
@@ -46,10 +44,10 @@ func (t *TodoFile) Path() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if t.name == "" {
-		t.name = time.Now().Format("01-02.txt")
+	if t.Name == "" {
+		t.Name = time.Now().Format("01-02.txt")
 	}
-	return sanitizePath(dir + "/" + t.name), nil
+	return sanitizePath(dir + "/" + t.Name), nil
 }
 
 // Create creates a todo file at "<t.basePath>/<t.year>/<t.name>".
@@ -100,12 +98,12 @@ func (t *TodoFile) Parse() error {
 		return err
 	}
 
-	t.content = strings.Replace(string(bytes), "TODO\n", "", -1)
+	t.Content = strings.Replace(string(bytes), "TODO\n", "", -1)
 
-	sides := strings.Split(t.content, "Accomplished")
+	sides := strings.Split(t.Content, "Accomplished")
 
-	t.todos = parseList(sides[0])[1:]
-	t.accomps = parseList(sides[1])[1:]
+	t.Todos = parseList(sides[0])[1:]
+	t.Accomps = parseList(sides[1])[1:]
 
 	return nil
 }
@@ -113,17 +111,17 @@ func (t *TodoFile) Parse() error {
 // Print prints the TodoFile TODO & Accomplished lists.
 func (t *TodoFile) Print() {
 	// TODO: print message if no TODOs or Accomplished items are present.
-	format := formatStr(len(t.todos), len(t.accomps))
+	format := formatStr(len(t.Todos), len(t.Accomps))
 
 	red.Println("TODO")
 
-	for i, item := range t.todos {
+	for i, item := range t.Todos {
 		fmt.Printf(format, i+1, item)
 	}
 
 	green.Println("\nAccomplished")
 
-	for i, item := range t.accomps {
+	for i, item := range t.Accomps {
 		fmt.Printf(format, i+1, item)
 	}
 }
