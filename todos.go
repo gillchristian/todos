@@ -13,6 +13,7 @@ import (
 )
 
 var red *color.Color = color.New(color.FgRed, color.Bold)
+var green *color.Color = color.New(color.FgGreen, color.Bold)
 
 // Init initializes the TD's directory and creates a TodoFile at today's path.
 func Init(dirPath string) (string, error) {

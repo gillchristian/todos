@@ -14,6 +14,16 @@ var version = "0.0.1"
 var red *color.Color = color.New(color.FgRed, color.Bold)
 var green *color.Color = color.New(color.FgGreen, color.Bold)
 
+// TODO: create today's file if not present, maybe todo.TodoFile.Parse could do that
+func list(c *cli.Context) error {
+	t := todos.New(c.GlobalString("dir"))
+	_ = t.Parse()
+
+	t.Print()
+
+	return nil
+}
+
 func main() {
 	var path string
 
@@ -61,10 +71,14 @@ func main() {
 				return nil
 			},
 		},
+		{
+			Name:   "list",
+			Usage:  "lists today's TODOs and Accomplished items",
+			Action: list,
+		},
 	}
 
-	app.Action = func(c *cli.Context) error {
-		return nil
-	}
+	app.Action = list
+
 	_ = app.Run(os.Args)
 }
