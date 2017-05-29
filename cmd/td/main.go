@@ -17,7 +17,15 @@ var green *color.Color = color.New(color.FgGreen, color.Bold)
 // TODO: create today's file if not present, maybe todo.TodoFile.Parse could do that
 func list(c *cli.Context) error {
 	t := todos.New(c.GlobalString("dir"))
-	_ = t.Parse()
+
+	err := t.Parse()
+
+	if err != nil {
+		fmt.Println(err.Error())
+		fmt.Println("\nMaybe you forgot to initialize TD:\n   td init [dir]")
+
+		return nil
+	}
 
 	t.Print()
 

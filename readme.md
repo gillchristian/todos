@@ -66,6 +66,7 @@ alias td="td --dir ~/Desktop/todos"
 - [ ] `$ td report <week|month|year>`
 - [ ] Create today's file when not found (using yesterday's TODOs).
 - [ ] Feed back messages:
+  - [x] `$ td init` was not run, i.e. `--dir` does not exists.
   - [ ] No TODOs (well done! & suggest to use `$ td add <todo item>`).
   - [ ] No Accomplished (mmm! & suggest to use `$ td done`).
   - [ ] No items (both TODOs & Accomplished suggestions).
