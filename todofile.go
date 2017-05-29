@@ -22,7 +22,10 @@ type TodoFile struct {
 
 // New creates a new TodoFile with path as the TD's base path.
 func New(path string) TodoFile {
-	return TodoFile{BasePath: path}
+	return TodoFile{
+		BasePath: sanitizePath(path),
+		Content:  "TODO\n\nAccomplished",
+	}
 }
 
 // Dir returns the TodoFile directory path ("<base-path>/<year>").
@@ -61,7 +64,7 @@ func (t TodoFile) Create() (string, error) {
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.Mkdir(dir, 0755); err != nil {
-			return "", errors.Wrap(err, "Cannot create directory:")
+			return "", errors.Errorf("Cannot create directory %v", red.Sprint(dir))
 		}
 	}
 
@@ -72,19 +75,20 @@ func (t TodoFile) Create() (string, error) {
 
 	f, err := os.Create(filePath)
 	if err != nil {
-		return "", errors.Wrap(err, "Cannot create file:")
+		return "", errors.Errorf("Cannot create file %v", red.Sprint(filePath))
 	}
 	defer f.Close()
 
-	_, err = f.WriteString("TODO\n\nAccomplished")
+	_, err = f.WriteString(t.Content)
 	if err != nil {
-		return "", errors.Wrap(err, "Cannot write to file:")
+		return "", errors.Errorf("Cannot write to file %v", red.Sprint(filePath))
 	}
 
 	return filePath, nil
 }
 
 // Parse parses t to list todos and accomplished items.
+// When parsing today's TodoFile it will create it if it does not exist.
 func (t *TodoFile) Parse() error {
 	path, err := t.Path()
 
@@ -92,7 +96,15 @@ func (t *TodoFile) Parse() error {
 		return err
 	}
 
-	// TODO: create file if not existent (?)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if today := time.Now().Format("01-02.txt"); today == t.Name {
+			if _, err = t.Create(); err != nil {
+				return err
+			}
+		}
+		return errors.Errorf("%v does not exist", red.Sprint(path))
+	}
+
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
@@ -100,10 +112,10 @@ func (t *TodoFile) Parse() error {
 
 	t.Content = strings.Replace(string(bytes), "TODO\n", "", -1)
 
-	sides := strings.Split(t.Content, "Accomplished")
+	lists := strings.Split(t.Content, "Accomplished")
 
-	t.Todos = parseList(sides[0])[1:]
-	t.Accomps = parseList(sides[1])[1:]
+	t.Todos = parseList(lists[0])[1:]   // first item is an empty string
+	t.Accomps = parseList(lists[1])[1:] // first item is an empty string
 
 	return nil
 }

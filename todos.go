@@ -17,9 +17,7 @@ var green *color.Color = color.New(color.FgGreen, color.Bold)
 
 // Init initializes the TD's directory and creates a TodoFile at today's path.
 func Init(dirPath string) (string, error) {
-	t := TodoFile{
-		BasePath: sanitizePath(dirPath),
-	}
+	t := New(dirPath)
 
 	if err := os.Mkdir(t.BasePath, 0755); err != nil {
 		if os.IsExist(err) {
