@@ -98,11 +98,12 @@ func (t *TodoFile) Parse() error {
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		if today := time.Now().Format("01-02.txt"); today == t.Name {
-			if _, err = t.Create(); err != nil {
-				return err
+			if _, errC := t.Create(); errC != nil {
+				return errC
 			}
+		} else {
+			return errors.Errorf("%v does not exist", red.Sprint(path))
 		}
-		return errors.Errorf("%v does not exist", red.Sprint(path))
 	}
 
 	bytes, err := ioutil.ReadFile(path)
@@ -123,30 +124,26 @@ func (t *TodoFile) Parse() error {
 // Print prints the TodoFile TODO & Accomplished lists.
 func (t *TodoFile) Print() {
 	// TODO: print message if no TODOs or Accomplished items are present.
-	format := formatStr(len(t.Todos), len(t.Accomps))
 
 	red.Println("TODO")
 
-	for i, item := range t.Todos {
-		fmt.Printf(format, i+1, item)
-	}
+	printList(t.Todos)
 
 	green.Println("\nAccomplished")
 
-	for i, item := range t.Accomps {
+	printList(t.Accomps)
+}
+
+func printList(list []string) {
+	format := listItemFormater(len(list))
+
+	for i, item := range list {
 		fmt.Printf(format, i+1, item)
 	}
 }
 
-func formatStr(a, b int) string {
-	// TODO: improve this func, maybe make it more generic
-	pad := a
-	if a < b {
-		pad = b
-	}
-
-	s := fmt.Sprintf("%d", len(fmt.Sprintf("%d", pad)))
-
+func listItemFormater(count int) string {
+	s := fmt.Sprintf("%d", len(fmt.Sprintf("%d", count)))
 	return "- %" + s + "d: %v\n"
 }
 
