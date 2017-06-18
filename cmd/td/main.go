@@ -9,13 +9,31 @@ import (
 	"github.com/urfave/cli"
 )
 
-var version = "0.0.2"
-
 var red = color.New(color.FgRed, color.Bold)
 var green = color.New(color.FgGreen, color.Bold)
 
-// TODO: create today's file if not present, maybe todo.TodoFile.Parse could do that
-func list(c *cli.Context) error {
+func initAction(c *cli.Context) error {
+	var dir string
+
+	if c.NArg() > 0 {
+		dir = c.Args()[0]
+		fmt.Printf("Initializing on: %v.\n", red.Sprint(dir))
+	} else {
+		dir = c.GlobalString("dir")
+		fmt.Printf("Initializing on default directory: %v.\n", red.Sprint(dir))
+	}
+
+	path, err := todos.Init(dir)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(0)
+	}
+
+	fmt.Printf("Created today's to-do file: %s\n", green.Sprint(path))
+	return nil
+}
+
+func listAction(c *cli.Context) error {
 	t := todos.New(c.GlobalString("dir"))
 
 	err := t.Parse()
@@ -39,7 +57,7 @@ func main() {
 
 	app.Name = "td"
 
-	app.Version = version
+	app.Version = "0.0.2"
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
@@ -56,37 +74,18 @@ func main() {
 
 	app.Commands = []cli.Command{
 		{
-			Name:  "init",
-			Usage: "initializes the TD's directory and creates the first to-do file",
-			Action: func(c *cli.Context) error {
-				var dir string
-
-				if c.NArg() > 0 {
-					dir = c.Args()[0]
-					fmt.Printf("Initializing on: %v.\n", red.Sprint(dir))
-				} else {
-					dir = c.GlobalString("dir")
-					fmt.Printf("Initializing on default directory: %v.\n", red.Sprint(dir))
-				}
-
-				path, err := todos.Init(dir)
-				if err != nil {
-					fmt.Println(err)
-					os.Exit(0)
-				}
-
-				fmt.Printf("Created today's to-do file: %s\n", green.Sprint(path))
-				return nil
-			},
+			Name:   "init",
+			Usage:  "initializes the TD's directory and creates the first to-do file",
+			Action: initAction,
 		},
 		{
 			Name:   "list",
 			Usage:  "lists today's TODOs and Accomplished items",
-			Action: list,
+			Action: listAction,
 		},
 	}
 
-	app.Action = list
+	app.Action = listAction
 
 	_ = app.Run(os.Args)
 }
