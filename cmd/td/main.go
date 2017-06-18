@@ -9,10 +9,10 @@ import (
 	"github.com/urfave/cli"
 )
 
-var version = "0.0.1"
+var version = "0.0.2"
 
-var red *color.Color = color.New(color.FgRed, color.Bold)
-var green *color.Color = color.New(color.FgGreen, color.Bold)
+var red = color.New(color.FgRed, color.Bold)
+var green = color.New(color.FgGreen, color.Bold)
 
 // TODO: create today's file if not present, maybe todo.TodoFile.Parse could do that
 func list(c *cli.Context) error {
