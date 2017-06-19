@@ -87,51 +87,141 @@ func (t TodoFile) Create() (string, error) {
 	return filePath, nil
 }
 
-// Parse parses t to list todos and accomplished items.
+// Read parses t to list todos and accomplished items.
 // When parsing today's TodoFile it will create it if it does not exist.
-func (t *TodoFile) Parse() error {
+func (t *TodoFile) Read() (int, error) {
 	path, err := t.Path()
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// TODO:  Read should not be responsible for creating the file nor it
+		// should be responsible for adding the content from the previous file
 		if today := time.Now().Format("01-02.txt"); today == t.Name {
+
 			if _, errC := t.Create(); errC != nil {
-				return errC
+				return 0, errC
+			}
+
+			pt, errF := t.FindPrev()
+			if errF != nil {
+				return 0, errF
+			}
+
+			t.Todos = pt.Todos
+
+			_, errW := t.Write()
+
+			if errW != nil {
+				return 0, errW
 			}
 		} else {
-			return errors.Errorf("%v does not exist", red.Sprint(path))
+			return 0, errors.Errorf("%v does not exist", red.Sprint(path))
 		}
 	}
 
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	t.Content = strings.Replace(string(bytes), "TODO\n", "", -1)
+	t.Content = string(bytes)
 
-	lists := strings.Split(t.Content, "Accomplished")
+	lists := strings.Split(strings.Replace(t.Content, "TODO\n", "", 1), "Accomplished")
 
 	t.Todos = parseList(lists[0])[1:]   // first item is an empty string
 	t.Accomps = parseList(lists[1])[1:] // first item is an empty string
 
-	return nil
+	return len(bytes), nil
 }
 
 // Print prints the TodoFile TODO & Accomplished lists.
 func (t *TodoFile) Print() {
-	// TODO: print message if no TODOs or Accomplished items are present.
 
 	red.Println("TODO")
-
-	printList(t.Todos)
+	if len(t.Todos) > 0 {
+		printList(t.Todos)
+	} else {
+		fmt.Println("\nWhoops nothing to do, try adding some tasks: \n  $ td add [task]")
+	}
 
 	green.Println("\nAccomplished")
+	if len(t.Accomps) > 0 {
+		printList(t.Accomps)
+	} else {
+		fmt.Println("\nIf you finished something don't forget to mark it as done: \n  $ td done [# number]")
+	}
+}
 
-	printList(t.Accomps)
+// FindPrev finds the previous TD file, perses and returns it.
+func (t *TodoFile) FindPrev() (TodoFile, error) {
+	format := t.BasePath + "/2006/01-02.txt"
+
+	path, err := t.Path()
+
+	if err != nil {
+		return TodoFile{}, err
+	}
+
+	date, err := time.Parse(format, path)
+
+	if err != nil {
+		return TodoFile{}, err
+	}
+
+	// TODO: find from previous year
+	// TODO: test / double check edge cases
+	// TODO: check if file is a directory
+	// TODO: stop when no more files (i.e. year's directory does not exist / is empty)
+	for {
+		date = date.Add(time.Hour * -24)
+		path := date.Format(format)
+
+		if _, err := os.Stat(path); err == nil {
+			prev := New(t.BasePath)
+			prev.Year = date.Format("2006")
+			prev.Name = date.Format("01-02.txt")
+
+			if _, errP := prev.Read(); err != nil {
+				return TodoFile{}, errP
+			}
+
+			return prev, nil
+		}
+	}
+}
+
+// Write writes the lists into the file.
+func (t *TodoFile) Write() (int, error) {
+	path, err := t.Path()
+	if err != nil {
+		return 0, err
+	}
+
+	todos := ""
+
+	for _, item := range t.Todos {
+		todos = fmt.Sprintf("%v- %v\n", todos, item)
+	}
+
+	accomps := ""
+
+	for _, item := range t.Accomps {
+		accomps = fmt.Sprintf("%v- %v\n", accomps, item)
+	}
+
+	if len(t.Accomps) > 0 {
+		accomps = fmt.Sprintf("\n\n%v", accomps)
+	}
+
+	content := fmt.Sprintf("TODOS\n\n%v\nAccomplished%v", todos, accomps)
+
+	bs := []byte(content)
+	err = ioutil.WriteFile(path, bs, os.ModePerm)
+
+	return len(bs), err
 }
 
 func printList(list []string) {
