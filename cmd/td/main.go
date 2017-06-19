@@ -36,11 +36,11 @@ func initAction(c *cli.Context) error {
 func listAction(c *cli.Context) error {
 	t := todos.New(c.GlobalString("dir"))
 
-	err := t.Parse()
+	_, err := t.Read()
 
 	if err != nil {
 		fmt.Println(err.Error())
-		fmt.Println("\nMaybe you forgot to initialize TD:\n   td init [dir]")
+		fmt.Println("\nMaybe you forgot to initialize TD:\n   $ td init [dir]")
 
 		return nil
 	}
@@ -57,11 +57,13 @@ func main() {
 
 	app.Name = "td"
 
-	app.Version = "0.0.2"
+	app.Version = "0.0.3"
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
 	app.Usage = "A to-do's app written in Go. Inspired on https://goo.gl/j1dQ4M"
+
+	app.Action = listAction
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
@@ -84,8 +86,6 @@ func main() {
 			Action: listAction,
 		},
 	}
-
-	app.Action = listAction
 
 	_ = app.Run(os.Args)
 }
