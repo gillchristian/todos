@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gillchristian/todos"
@@ -50,6 +51,29 @@ func listAction(c *cli.Context) error {
 	return nil
 }
 
+func lastAction(c *cli.Context) error {
+	t := todos.New(c.GlobalString("dir"))
+
+	t, err := t.FindPrev()
+
+	if err != nil {
+		fmt.Println(err.Error())
+		fmt.Println("\nCould not find a TD file, maybe you forgot to initialize TD:\n   $ td init [dir]")
+
+		return nil
+	}
+
+	if path, err := t.Path(); err == nil {
+		if date, err := time.Parse(t.BasePath+"/2006/01-02.txt", path); err == nil {
+			fmt.Printf("TD file: %v\n\n", date.Format("2006/01/02"))
+		}
+	}
+
+	t.Print()
+
+	return nil
+}
+
 func main() {
 	var path string
 
@@ -57,7 +81,7 @@ func main() {
 
 	app.Name = "td"
 
-	app.Version = "0.0.3"
+	app.Version = "0.0.4"
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
@@ -84,6 +108,11 @@ func main() {
 			Name:   "list",
 			Usage:  "lists today's TODOs and Accomplished items",
 			Action: listAction,
+		},
+		{
+			Name:   "last",
+			Usage:  "lists last day TODOs and Accomplished items",
+			Action: lastAction,
 		},
 	}
 
