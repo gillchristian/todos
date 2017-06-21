@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -74,6 +75,32 @@ func lastAction(c *cli.Context) error {
 	return nil
 }
 
+func addTodoAction(c *cli.Context) error {
+	t := todos.New(c.GlobalString("dir"))
+
+	_, err := t.Read()
+
+	if err != nil {
+		fmt.Println(err.Error())
+		fmt.Println("\nMaybe you forgot to initialize TD:\n   $ td init [dir]")
+
+		return nil
+	}
+
+	msg := strings.Join(c.Args(), " ")
+
+	for msg == "" {
+		fmt.Print("Enter TODO text: ")
+		fmt.Scanln(&msg)
+	}
+
+	_ = t.Add(msg) // TODO: handle this error
+
+	t.Print()
+
+	return nil
+}
+
 func main() {
 	var path string
 
@@ -113,6 +140,11 @@ func main() {
 			Name:   "last",
 			Usage:  "lists last day TODOs and Accomplished items",
 			Action: lastAction,
+		},
+		{
+			Name:   "add",
+			Usage:  "adds a TODO to today's list",
+			Action: addTodoAction,
 		},
 	}
 

@@ -224,6 +224,14 @@ func (t *TodoFile) Write() (int, error) {
 	return len(bs), err
 }
 
+func (t *TodoFile) Add(text string) error {
+
+	t.Todos = append(t.Todos, text)
+	_, err := t.Write()
+
+	return err
+}
+
 func printList(list []string) {
 	format := listItemFormater(len(list))
 
