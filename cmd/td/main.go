@@ -108,7 +108,7 @@ func main() {
 
 	app.Name = "td"
 
-	app.Version = "0.0.4"
+	app.Version = "0.0.5"
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
