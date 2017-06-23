@@ -114,18 +114,15 @@ func accomplishTodoAction(c *cli.Context) error {
 		return nil
 	}
 
-	var id string
+	id := c.Args().First()
 
 	count := len(t.Todos)
-
-	fmt.Printf("Enter TODO number between 1 and %v: ", count)
-	fmt.Scanln(&id)
 
 	i, err := strconv.Atoi(id)
 
 	for err != nil || i < 1 || i > count {
-		fmt.Printf("Mmm that's not a number between 1 and %v: ", count)
 
+		fmt.Printf("Enter TODO number between 1 and %v: ", count)
 		fmt.Scanln(&id)
 
 		i, err = strconv.Atoi(id)
@@ -145,7 +142,7 @@ func main() {
 
 	app.Name = "td"
 
-	app.Version = "0.0.6"
+	app.Version = "0.0.7"
 
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
 
