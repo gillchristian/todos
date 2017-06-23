@@ -213,10 +213,10 @@ func (t *TodoFile) Write() (int, error) {
 	}
 
 	if len(t.Accomps) > 0 {
-		accomps = fmt.Sprintf("\n\n%v", accomps)
+		accomps = fmt.Sprintf("\n%v", accomps)
 	}
 
-	content := fmt.Sprintf("TODOS\n\n%v\nAccomplished%v", todos, accomps)
+	content := fmt.Sprintf("TODOS\n%v\nAccomplished%v", todos, accomps)
 
 	bs := []byte(content)
 	err = ioutil.WriteFile(path, bs, os.ModePerm)
@@ -224,12 +224,33 @@ func (t *TodoFile) Write() (int, error) {
 	return len(bs), err
 }
 
+// Add adds a TODO to the file.
 func (t *TodoFile) Add(text string) error {
 
 	t.Todos = append(t.Todos, text)
 	_, err := t.Write()
 
 	return err
+}
+
+// Accomplish moves a TODO to the Accomplished list.
+func (t *TodoFile) Accomplish(i int) error {
+	if i > len(t.Todos) || i < 1 {
+		return errors.Errorf("To set a TODO as done please use a number between 1 and %v", i)
+	}
+
+	// i will be between 1 and len(t.Todos)
+	i = i - 1
+
+	t.Accomps = append(t.Accomps, t.Todos[i])
+
+	t.Todos = append(t.Todos[:i], t.Todos[i+1:]...)
+
+	if _, err := t.Write(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func printList(list []string) {
