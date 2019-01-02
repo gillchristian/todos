@@ -139,20 +139,16 @@ func (t *TodoFile) Read() (int, error) {
 
 // Print prints the TodoFile TODO & Accomplished lists.
 func (t *TodoFile) Print() {
-
-	red.Println("TODO")
-	if len(t.Todos) > 0 {
-		printList(t.Todos)
-	} else {
-		fmt.Println("\nWhoops nothing to do, try adding some tasks: \n  $ td add [task]")
-	}
-
-	green.Println("\nAccomplished")
-	if len(t.Accomps) > 0 {
-		printList(t.Accomps)
-	} else {
-		fmt.Println("\nIf you finished something don't forget to mark it as done: \n  $ td done [# number]")
-	}
+	PrintList(
+		t.Todos,
+		red.Sprint("TODO"),
+		"\nWhoops nothing to do, try adding some tasks: \n  $ td add [task]",
+	)
+	PrintList(
+		t.Accomps,
+		green.Sprint("\nAccomplished"),
+		"\nIf you finished something don't forget to mark it as done: \n  $ td done [# number]",
+	)
 }
 
 // FindPrev finds the previous TD file, perses and returns it.
@@ -253,12 +249,44 @@ func (t *TodoFile) Accomplish(i int) error {
 	return nil
 }
 
-func printList(list []string) {
-	format := listItemFormater(len(list))
-
-	for i, item := range list {
-		fmt.Printf(format, i+1, item)
+// PrintList prints a header and a list or a message when list is empty.
+func PrintList(list []string, header, or string) {
+	fmt.Println(header)
+	if len(list) > 0 {
+		format := listItemFormater(len(list))
+		for i, item := range list {
+			fmt.Printf(format, i+1, item)
+		}
+	} else {
+		fmt.Println(or)
 	}
+}
+
+// Date returns the formated day of the TodoFile
+func (t TodoFile) Date() (string, bool) {
+	date, ok := t.date()
+	if ok {
+		return date.Format("2006/01/02"), true
+	}
+	return "", false
+}
+
+// Day returns the weekday
+func (t TodoFile) Day() (string, bool) {
+	date, ok := t.date()
+	if ok {
+		return date.Weekday().String(), true
+	}
+	return "", false
+}
+
+func (t TodoFile) date() (time.Time, bool) {
+	if path, err := t.Path(); err == nil {
+		if date, err := time.Parse(t.BasePath+"/2006/01-02.txt", path); err == nil {
+			return date, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func listItemFormater(count int) string {
