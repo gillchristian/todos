@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/gillchristian/todos"
@@ -65,10 +64,8 @@ func lastAction(c *cli.Context) error {
 		return nil
 	}
 
-	if path, err := t.Path(); err == nil {
-		if date, err := time.Parse(t.BasePath+"/2006/01-02.txt", path); err == nil {
-			fmt.Printf("TD file: %v\n\n", date.Format("2006/01/02"))
-		}
+	if d, ok := t.Date(); ok {
+		fmt.Printf("TD file: %v\n\n", d)
 	}
 
 	t.Print()
@@ -84,7 +81,6 @@ func addTodoAction(c *cli.Context) error {
 	if err != nil {
 		fmt.Println(err.Error())
 		fmt.Println("\nMaybe you forgot to initialize TD:\n   $ td init [dir]")
-
 		return nil
 	}
 
@@ -135,17 +131,50 @@ func accomplishTodoAction(c *cli.Context) error {
 	return nil
 }
 
+func reportAction(c *cli.Context) error {
+	today := todos.New(c.GlobalString("dir"))
+	_, err := today.Read()
+	if err != nil {
+		fmt.Println(err.Error())
+		fmt.Println("\nMaybe you forgot to initialize TD:\n   $ td init [dir]")
+		return nil
+	}
+
+	prev, err := today.FindPrev()
+	if err != nil {
+		fmt.Println(err.Error())
+		fmt.Println("\nCould not find a TD file, maybe you forgot to initialize TD:\n   $ td init [dir]")
+		return nil
+	}
+
+	d := "Yesterday"
+	if prevDate, ok := prev.Day(); ok {
+		d = prevDate
+	}
+
+	todos.PrintList(
+		prev.Accomps,
+		green.Sprint(d),
+		"Looks like you did not work yesterday...",
+	)
+
+	todos.PrintList(
+		today.Todos,
+		red.Sprint("\nToday"),
+		"Nothing to do today, really?",
+	)
+
+	return nil
+}
+
 func main() {
 	var path string
 
 	app := cli.NewApp()
 
 	app.Name = "td"
-
-	app.Version = "0.0.7"
-
+	app.Version = "0.0.8"
 	app.Author = "Christian Gill (gillchristiang@gmail.com)"
-
 	app.Usage = "A to-do's app written in Go. Inspired on https://goo.gl/j1dQ4M"
 
 	app.Action = listAction
@@ -184,6 +213,11 @@ func main() {
 			Name:   "done",
 			Usage:  "sets a TODO as accomplished",
 			Action: accomplishTodoAction,
+		},
+		{
+			Name:   "standup",
+			Usage:  "report for standup (prev day accomplishments and today's todos)",
+			Action: reportAction,
 		},
 	}
 
