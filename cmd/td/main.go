@@ -147,7 +147,7 @@ func reportAction(c *cli.Context) error {
 		return nil
 	}
 
-	d := "Yesterday"
+	d := "*Yesterday*"
 	if prevDate, ok := prev.Day(); ok {
 		d = prevDate
 	}
@@ -160,7 +160,7 @@ func reportAction(c *cli.Context) error {
 
 	todos.PrintList(
 		today.Todos,
-		red.Sprint("\nToday"),
+		 red.Sprint("\n*Today*"),
 		"Nothing to do today, really?",
 	)
 
