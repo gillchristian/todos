@@ -273,9 +273,11 @@ func (t TodoFile) Date() (string, bool) {
 
 // Day returns the weekday
 func (t TodoFile) Day() (string, bool) {
+	// TODO: "yesterday" if it was, well, yesterday
 	date, ok := t.date()
 	if ok {
-		return date.Weekday().String(), true
+		d, _ := t.Date() // safe to ignore since t.date worked here
+		return fmt.Sprintf("*%s* (%s)", date.Weekday(), d), true
 	}
 	return "", false
 }
