@@ -1,13 +1,10 @@
-# td [![Godoc](https://godoc.org/github.com/gillchristian/todos?status.svg&style=flat-square)](http://godoc.org/github.com/gillchristian/todos)
+# td
 
-A to-do's CLI app written in Go. Inspired on [The Power of the TODO List](https://goo.gl/j1dQ4M) by [James Hood](http://jlhood.com/) (:bird: [@jlhcoder](https://twitter.com/jlhcoder)).
+A to-do's CLI app. Inspired on [The Power of the TODO List](https://goo.gl/j1dQ4M) by [James Hood](http://jlhood.com/) (:bird: [@jlhcoder](https://twitter.com/jlhcoder)).
 
 ## Installation
 
-
-```bash
-$ go get -u github.com/gillchristian/todos/cmd/td
-```
+**WIP** (I'm migrating it from Go to Haskell so everything is brokent now)
 
 ## Usage
 
@@ -55,18 +52,18 @@ alias td="td --dir ~/Desktop/todos"
 
 ## TO-DO
 
-- [x] `$ td`
-- [x] `$ td init`
-- [x] `$ td list`
+- [x] `$ td` (lists files)
+- [ ] `$ td init`
+- [ ] `$ td list`
 - [ ] `$ td list last`
 - [ ] `$ td list <date>`
-- [ ] `$ td add <todo item>`
+- [x] `$ td add <todo item>`
 - [ ] `$ td done [I]`
 - [ ] `$ td rm`
 - [ ] `$ td report <week|month|year>`
-- [ ] Create today's file when not found (using yesterday's TODOs).
+- [x] Create today's file when not found (using yesterday's TODOs).
 - [ ] Feed back messages:
-  - [x] `$ td init` was not run, i.e. `--dir` does not exists.
+  - [ ] `$ td init` was not run, i.e. `--dir` does not exists.
   - [ ] No TODOs (well done! & suggest to use `$ td add <todo item>`).
   - [ ] No Accomplished (mmm! & suggest to use `$ td done`).
   - [ ] No items (both TODOs & Accomplished suggestions).
