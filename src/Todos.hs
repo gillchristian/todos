@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Todos
   ( runCli,
   )
@@ -6,7 +8,6 @@ where
 import Control.Monad (void)
 import qualified Data.Dates as Dates
 import qualified Data.Dates.Formats as Dates
-import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
@@ -27,27 +28,21 @@ printStderr = Sys.hPrint Sys.stderr
 
 -- Parsing ---
 
-accomplisedHeading :: Parser String
-accomplisedHeading = ParsecChar.string "Accomplished"
-
-todosHeading :: Parser String
-todosHeading = ParsecChar.string "TODOS"
-
-line :: Parser Todo
-line = ParsecChar.char '-' *> ParsecChar.spaces *> restOfLine
+eolOrEof :: Parser ()
+eolOrEof = void ParsecChar.endOfLine <|> ParsecComb.eof
 
 restOfLine :: Parser String
 restOfLine = Parsec.manyTill (ParsecChar.noneOf "\n\r") eolOrEof
 
-eolOrEof :: Parser ()
-eolOrEof = void ParsecChar.endOfLine <|> ParsecComb.eof
+line :: Parser Todo
+line = ParsecChar.char '-' *> ParsecChar.spaces *> restOfLine
 
 todoFileParser :: FilePath -> Parser TodoFile
 todoFileParser name = do
-  void $ todosHeading *> ParsecChar.endOfLine
+  void $ ParsecChar.string "TODOS" *> ParsecChar.endOfLine
   todos <- Parsec.many line
   void $ ParsecChar.endOfLine
-  void $ accomplisedHeading
+  void $ ParsecChar.string "Accomplished"
   eolOrEof
   TodoFile name todos <$> Parsec.many line
 
@@ -130,49 +125,76 @@ yyyyMmDd d =
     ++ "/"
     ++ (printf "%02d" $ Dates.day d)
 
+-- TODO: parametrize the content
+data FileType
+  = NoFiles
+  | HasToday FilePath -- today file exists
+  | HasPrev FilePath -- today fiel does not exist
+  deriving (Show, Eq)
+
+todayFile :: FilePath -> [FilePath] -> FileType
+todayFile _ [] = NoFiles
+todayFile today (viewHead today -> True) = HasToday today
+todayFile _ (prev : _) = HasPrev prev
+
+viewHead :: Eq a => a -> [a] -> Bool
+viewHead _ [] = False
+viewHead x (y : _) = x == y
+
+prevFile :: FilePath -> [FilePath] -> FileType
+prevFile _ [] = NoFiles
+prevFile today [prev] =
+  if today == prev
+    then HasToday today
+    else HasPrev prev
+prevFile today (prev : rest) =
+  if today == prev
+    then prevFile today rest
+    else HasPrev prev
+
 -- TodoFile IO ---
 
 saveTodoFile :: FilePath -> TodoFile -> IO ()
 saveTodoFile basePath tdf = writeFile (basePath // path tdf) $ show tdf
 
-todayFile :: FilePath -> [FilePath] -> IO (Either Parsec.ParseError TodoFile)
-todayFile _ [] = do
+todayFileIO :: FilePath -> [FilePath] -> IO (Either Parsec.ParseError TodoFile)
+todayFileIO basePath files = do
   todayName <- formatFileName <$> Dates.getCurrentDateTime
-  pure $ Right $ TodoFile todayName [] []
-todayFile basePath (prevDayName : _) =
-  Dates.getCurrentDateTime
-    <&> formatFileName
-    >>= readLastFile basePath prevDayName
+  case todayFile todayName files of
+    NoFiles -> pure $ Right $ TodoFile todayName [] []
+    HasToday name ->
+      let fullPath = basePath // name
+       in Parsec.parseFromFile (todoFileParser todayName) fullPath
+    HasPrev name -> do
+      let fullPath = basePath // name
+      eitherFile <- Parsec.parseFromFile (todoFileParser todayName) fullPath
+      pure $ fromLastTodoFile <$> eitherFile
 
-readLastFile ::
-  FilePath -> FilePath -> FilePath -> IO (Either Parsec.ParseError TodoFile)
-readLastFile basePath prevDayName todayName
-  | todayName == prevDayName =
-    Parsec.parseFromFile (todoFileParser todayName) $ basePath // todayName
-  | otherwise = do
-    let fullPath = basePath // prevDayName
-    eitherFile <- Parsec.parseFromFile (todoFileParser todayName) fullPath
-    pure $ fromLastTodoFile <$> eitherFile
-
-prevFile ::
+prevFileIO ::
   FilePath -> FilePath -> [FilePath] -> IO (Either Parsec.ParseError TodoFile)
-prevFile _ todayName [] =
-  pure $ Right $ TodoFile todayName [] []
-prevFile basePath todayName (lastFileName : rest) =
-  if todayName == lastFileName
-    then prevFile basePath todayName rest
-    else Parsec.parseFromFile (todoFileParser lastFileName) fullPath
-  where
-    fullPath = basePath // lastFileName
+prevFileIO basePath todayName files =
+  case prevFile todayName files of
+    NoFiles -> pure $ Right $ TodoFile todayName [] []
+    -- TODO: what do we do? create empty file for yesterday?
+    HasToday name ->
+      let fullPath = basePath // name
+       in Parsec.parseFromFile (todoFileParser todayName) fullPath
+    HasPrev name ->
+      let fullPath = basePath // name
+       in Parsec.parseFromFile (todoFileParser name) fullPath
 
 -- CLI ---
 
 handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
 --   $ td add [word...]
+handleCommands basePath todoFiles ["add"] = do
+  putStrLn "Nothing to add. Make sure to provide the TODO content:"
+  putStrLn " $ td add [word...]"
+  putStrLn " $ td add [word...]"
 handleCommands basePath todoFiles ("add" : todo) = do
   let newTodo = List.intercalate " " todo
-  eitherFile <- todayFile basePath todoFiles
+  eitherFile <- todayFileIO basePath todoFiles
   file <- case addTodo newTodo <$> eitherFile of
     Right file -> pure file
     Left err -> Exit.die $ show err
@@ -182,7 +204,7 @@ handleCommands basePath todoFiles ("add" : todo) = do
 --   $ td last
 handleCommands basePath todoFiles ("last" : _) = do
   todayName <- formatFileName <$> Dates.getCurrentDateTime
-  eitherPrevFile <- prevFile basePath todayName todoFiles
+  eitherPrevFile <- prevFileIO basePath todayName todoFiles
   prevF <- case eitherPrevFile of
     Right file -> pure file
     Left err -> Exit.die $ show err
@@ -193,11 +215,12 @@ handleCommands basePath todoFiles ("last" : _) = do
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td
 handleCommands basePath todoFiles _ = do
-  eitherFile <- todayFile basePath todoFiles
+  eitherFile <- todayFileIO basePath todoFiles
   case eitherFile of
     Right file -> do
       saveTodoFile basePath file -- TODO: only write if it's a new file?
       putStr $ formatFileWithIndex file
+    Left err -> Exit.die $ show err
 
 runCli :: IO ()
 runCli = do
