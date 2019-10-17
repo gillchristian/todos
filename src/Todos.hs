@@ -191,7 +191,6 @@ handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 handleCommands basePath todoFiles ["add"] = do
   putStrLn "Nothing to add. Make sure to provide the TODO content:"
   putStrLn " $ td add [word...]"
-  putStrLn " $ td add [word...]"
 handleCommands basePath todoFiles ("add" : todo) = do
   let newTodo = List.intercalate " " todo
   eitherFile <- todayFileIO basePath todoFiles
