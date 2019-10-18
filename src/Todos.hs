@@ -125,14 +125,20 @@ yyyyMmDd d =
     ++ "/"
     ++ (printf "%02d" $ Dates.day d)
 
--- TODO: parametrize the content
-data FileType
+data FileType a
   = NoFiles
-  | HasToday FilePath -- today file exists
-  | HasPrev FilePath -- today fiel does not exist
+  | HasToday a
+  | HasPrev a
+  | Error String
   deriving (Show, Eq)
 
-todayFile :: FilePath -> [FilePath] -> FileType
+instance Functor FileType where
+  fmap _ NoFiles = NoFiles
+  fmap f (HasToday a) = HasToday $ f a
+  fmap f (HasPrev a) = HasPrev $ f a
+  fmap _ (Error s) = Error s
+
+todayFile :: FilePath -> [FilePath] -> FileType FilePath
 todayFile _ [] = NoFiles
 todayFile today (viewHead today -> True) = HasToday today
 todayFile _ (prev : _) = HasPrev prev
@@ -141,7 +147,7 @@ viewHead :: Eq a => a -> [a] -> Bool
 viewHead _ [] = False
 viewHead x (y : _) = x == y
 
-prevFile :: FilePath -> [FilePath] -> FileType
+prevFile :: FilePath -> [FilePath] -> FileType FilePath
 prevFile _ [] = NoFiles
 prevFile today [prev] =
   if today == prev
@@ -157,46 +163,52 @@ prevFile today (prev : rest) =
 saveTodoFile :: FilePath -> TodoFile -> IO ()
 saveTodoFile basePath tdf = writeFile (basePath // path tdf) $ show tdf
 
-todayFileIO :: FilePath -> [FilePath] -> IO (Either Parsec.ParseError TodoFile)
+todayFileIO :: FilePath -> [FilePath] -> IO (FileType TodoFile)
 todayFileIO basePath files = do
   todayName <- formatFileName <$> Dates.getCurrentDateTime
   case todayFile todayName files of
-    NoFiles -> pure $ Right $ TodoFile todayName [] []
-    HasToday name ->
-      let fullPath = basePath // name
-       in Parsec.parseFromFile (todoFileParser todayName) fullPath
-    HasPrev name -> do
-      let fullPath = basePath // name
+    -- Read today's file
+    HasToday _ -> do
+      let fullPath = basePath // todayName
       eitherFile <- Parsec.parseFromFile (todoFileParser todayName) fullPath
-      pure $ fromLastTodoFile <$> eitherFile
+      pure $ either (Error . show) (HasToday) eitherFile
+    -- Read yesterday's file
+    HasPrev prevName -> do
+      let fullPath = basePath // prevName
+      eitherFile <- Parsec.parseFromFile (todoFileParser todayName) fullPath
+      pure $ either (Error . show) (HasPrev) eitherFile
+    -- ParseError / NoFiles
+    NoFiles -> pure NoFiles
+    Error err -> pure $ Error err
 
-prevFileIO ::
-  FilePath -> FilePath -> [FilePath] -> IO (Either Parsec.ParseError TodoFile)
+prevFileIO :: FilePath -> FilePath -> [FilePath] -> IO (FileType TodoFile)
 prevFileIO basePath todayName files =
   case prevFile todayName files of
-    NoFiles -> pure $ Right $ TodoFile todayName [] []
-    -- TODO: what do we do? create empty file for yesterday?
-    HasToday name ->
+    HasPrev name -> do
       let fullPath = basePath // name
-       in Parsec.parseFromFile (todoFileParser todayName) fullPath
-    HasPrev name ->
-      let fullPath = basePath // name
-       in Parsec.parseFromFile (todoFileParser name) fullPath
+      eitherFile <- Parsec.parseFromFile (todoFileParser name) fullPath
+      pure $ either (Error . show) (HasPrev) eitherFile
+    file -> pure $ fmap (const $ TodoFile todayName [] []) file
 
 -- CLI ---
 
 handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
 --   $ td add [word...]
-handleCommands basePath todoFiles ["add"] = do
+handleCommands _ _ ["add"] = do
   putStrLn "Nothing to add. Make sure to provide the TODO content:"
   putStrLn " $ td add [word...]"
 handleCommands basePath todoFiles ("add" : todo) = do
+  todayName <- formatFileName <$> Dates.getCurrentDateTime
   let newTodo = List.intercalate " " todo
-  eitherFile <- todayFileIO basePath todoFiles
-  file <- case addTodo newTodo <$> eitherFile of
-    Right file -> pure file
-    Left err -> Exit.die $ show err
+  fileType <- todayFileIO basePath todoFiles
+  file <- case addTodo newTodo <$> fileType of
+    HasPrev file -> pure file
+    HasToday file -> pure file
+    Error err -> Exit.die err
+    NoFiles -> do
+      putStrLn "Creating your first TODO file \\o/\n"
+      pure $ TodoFile todayName [] []
   saveTodoFile basePath file
   putStr $ formatFileWithIndex file
 -- Prints the last file (that is not today's one)
@@ -205,8 +217,15 @@ handleCommands basePath todoFiles ("last" : _) = do
   todayName <- formatFileName <$> Dates.getCurrentDateTime
   eitherPrevFile <- prevFileIO basePath todayName todoFiles
   prevF <- case eitherPrevFile of
-    Right file -> pure file
-    Left err -> Exit.die $ show err
+    HasPrev file -> pure file
+    HasToday _ -> Exit.die "No last file"
+    NoFiles ->
+      Exit.die $
+        "You don't have any TODO files yet :)\n"
+          ++ "Run the add or list commands to create your first file.\n"
+          ++ "  $ td\n"
+          ++ "  $ td add 'Start creating todos'"
+    Error err -> Exit.die err
   case parseFileName $ path prevF of
     Right date -> putStrLn $ "td file: " ++ yyyyMmDd date ++ "\n"
     Left err -> printStderr err
@@ -214,12 +233,20 @@ handleCommands basePath todoFiles ("last" : _) = do
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td
 handleCommands basePath todoFiles _ = do
+  todayName <- formatFileName <$> Dates.getCurrentDateTime
   eitherFile <- todayFileIO basePath todoFiles
   case eitherFile of
-    Right file -> do
-      saveTodoFile basePath file -- TODO: only write if it's a new file?
+    HasToday file -> putStr $ formatFileWithIndex file
+    HasPrev prev -> do
+      let file = fromLastTodoFile prev
+      saveTodoFile basePath file
+      putStr $ formatFileWithIndex $ fromLastTodoFile file
+    NoFiles -> do
+      let file = TodoFile todayName [] []
+      saveTodoFile basePath file
+      putStrLn "Created your first TODO file \\o/\n"
       putStr $ formatFileWithIndex file
-    Left err -> Exit.die $ show err
+    Error err -> Exit.die err
 
 runCli :: IO ()
 runCli = do
