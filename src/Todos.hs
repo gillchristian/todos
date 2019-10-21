@@ -72,6 +72,10 @@ formatItems = concat . fmap formatLine
 formatItemsWithIndex :: [String] -> String
 formatItemsWithIndex = concat . fmap formatLineWithIndex . List.zip [1 ..]
 
+itemsOrMsg :: String -> [String] -> String
+itemsOrMsg msg [] = msg
+itemsOrMsg _ items = formatItemsWithIndex items
+
 formatFile :: TodoFile -> String
 formatFile (TodoFile _ todos dones) =
   "TODOS\n"
@@ -85,6 +89,15 @@ formatFileWithIndex (TodoFile _ todos dones) =
     ++ formatItemsWithIndex todos
     ++ "\nAccomplished\n"
     ++ formatItemsWithIndex dones
+
+standupMsg :: TodoFile -> TodoFile -> String
+standupMsg (TodoFile prevName _ prevDone) (TodoFile _ todayTodo _) =
+  "Accomplished (" ++ either (const "yesterday?") yyyyMmDd prevDate ++ ")\n"
+    ++ itemsOrMsg "Looks like you did not work yesterday ...\n" prevDone
+    ++ "\nTODO today\n"
+    ++ itemsOrMsg "No work for today? Try\n  $ td add 'Do stuff'\n" todayTodo
+  where
+    prevDate = parseFileName prevName
 
 -- Paths ---
 
@@ -192,7 +205,7 @@ handleCommands basePath todoFiles ("add" : todo) = do
     Error err -> Exit.die err
     NoFiles -> do
       putStrLn "Creating your first TODO file \\o/\n"
-      pure $ TodoFile todayName [] []
+      pure $ TodoFile todayName [newTodo] []
   saveTodoFile basePath file
   putStr $ formatFileWithIndex file
 -- Prints the last file (that is not today's one)
@@ -214,6 +227,30 @@ handleCommands basePath todoFiles ("last" : _) = do
     Right date -> putStrLn $ "td file: " ++ yyyyMmDd date ++ "\n"
     Left err -> printStderr err
   putStr $ formatFileWithIndex prevF
+-- Lists last's dones and today's todos
+--   $ td standup
+handleCommands basePath todoFiles ("standup" : _) = do
+  todayName <- formatFileName <$> Dates.getCurrentDateTime
+  mToday <- readTodoFile basePath $ todayFile todayName todoFiles
+  mPrev <- readTodoFile basePath $ prevFile todayName todoFiles
+  (prev, today) <- case (mPrev, mToday) of
+    -- Yay we have both files!
+    (HasPrev prev, HasToday today) -> pure (prev, today)
+    -- No yesterday's file
+    (HasToday _, HasToday today) -> pure (TodoFile "" [] [], today)
+    -- No today's file
+    (HasPrev prev, HasPrev _) -> do
+      let (TodoFile _ prevTodos _) = prev
+      let todayNew = TodoFile todayName prevTodos []
+      saveTodoFile basePath todayNew
+      putStrLn "Created TODO file from yesterday's\n"
+      pure (prev, todayNew)
+    (NoFiles, _) -> Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
+    (_, NoFiles) -> Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
+    (Error err, _) -> Exit.die err
+    (_, Error err) -> Exit.die err
+    _ -> Exit.die "Something went wrong =/"
+  putStr $ standupMsg prev today
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td
 handleCommands basePath todoFiles _ = do
