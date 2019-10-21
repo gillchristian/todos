@@ -1,6 +1,9 @@
 # td
 
-A to-do's CLI app. Inspired on [The Power of the TODO List](https://goo.gl/j1dQ4M) by [James Hood](http://jlhood.com/) (:bird: [@jlhcoder](https://twitter.com/jlhcoder)).
+A to-do's CLI app. Inspired on
+[The Power of the TODO List](https://goo.gl/j1dQ4M) by
+[James Hood](http://jlhood.com/) (:bird:
+[@jlhcoder](https://twitter.com/jlhcoder)).
 
 ## Installation
 
@@ -44,7 +47,8 @@ $ td report <week|month|year> -o <FILE> # write the report to <FILE>
 `(*)` creates today's file if not yet created.
 
 
-**NOTE**: if you use a custom directory you will have to specify it on every command with the `--dir` flag. A solution fo that is to use an alias:
+**NOTE**: if you use a custom directory you will have to specify it on every
+command with the `--dir` flag. A solution fo that is to use an alias:
 
 ```bash
 alias td="td --dir ~/Desktop/todos"
@@ -52,15 +56,13 @@ alias td="td --dir ~/Desktop/todos"
 
 ## TO-DO
 
-- [x] `$ td` (lists files)
-- [ ] `$ td init`
-- [ ] `$ td list`
-- [ ] `$ td list last`
-- [ ] `$ td list <date>`
+- [x] `$ td` (lists today's todo/done)
+- [x] `$ td last` (list previous day todo/done)
 - [x] `$ td add <todo item>`
-- [ ] `$ td done [I]`
+- [x] `$ td standup` (list prev day done & today todo)
+- [ ] `$ td done [x]`
 - [ ] `$ td rm`
-- [ ] `$ td report <week|month|year>`
+- [ ] `$ td init`
 - [x] Create today's file when not found (using yesterday's TODOs).
 - [ ] Feed back messages:
   - [ ] `$ td init` was not run, i.e. `--dir` does not exists.
