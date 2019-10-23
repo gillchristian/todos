@@ -21,6 +21,7 @@ dependencies:
 - directory
 - parsec
 - dates >= 0.2.3.0 && < 0.3
+- monad-loops
 
 library:
   source-dirs: src
