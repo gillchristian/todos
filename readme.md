@@ -60,7 +60,8 @@ alias td="td --dir ~/Desktop/todos"
 - [x] `$ td last` (list previous day todo/done)
 - [x] `$ td add <todo item>`
 - [x] `$ td standup` (list prev day done & today todo)
-- [ ] `$ td done [x]`
+- [x] `$ td done` (ask for number)
+- [x] `$ td done [x]`
 - [ ] `$ td rm`
 - [ ] `$ td init`
 - [x] Create today's file when not found (using yesterday's TODOs).
@@ -69,5 +70,5 @@ alias td="td --dir ~/Desktop/todos"
   - [ ] No TODOs (well done! & suggest to use `$ td add <todo item>`).
   - [ ] No Accomplished (mmm! & suggest to use `$ td done`).
   - [ ] No items (both TODOs & Accomplished suggestions).
-- [ ] Add tests.
+- [ ] Tests.
 

@@ -5,10 +5,12 @@ module Todos
   )
 where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
+import Control.Monad.Loops (untilJust)
 import qualified Data.Dates as Dates
 import qualified Data.Dates.Formats as Dates
 import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
@@ -20,6 +22,7 @@ import Text.Parsec.Prim ((<|>))
 import qualified Text.Parsec.String as Parsec
 import Text.Parsec.String (Parser)
 import Text.Printf (printf)
+import Text.Read (readMaybe)
 
 -- System ---
 
@@ -48,6 +51,14 @@ todoFileParser name = do
 
 parseFileName :: String -> Either Parsec.ParseError Dates.DateTime
 parseFileName = Dates.parseDateFormat "YYYY-MM-DD.txt"
+
+parseNatWithCap :: Int -> String -> Maybe Int
+parseNatWithCap cap s = readMaybe s >>= checkCap
+  where
+    checkCap x
+      | x < 1 = Nothing
+      | x > cap = Nothing
+      | otherwise = Just x
 
 -- Types ---
 
@@ -167,6 +178,15 @@ prevFile today (prev : rest) =
     then prevFile today rest
     else HasPrev prev
 
+accomplish :: Int -> TodoFile -> TodoFile
+accomplish n (TodoFile name todo done)
+  | i >= 0 && i < length todo =
+    let (before, (item : rest)) = splitAt i todo
+     in TodoFile name (before ++ rest) $ (done ++ [item])
+  | otherwise = TodoFile name todo done
+  where
+    i = n - 1 -- n is the TODO number, i is the index
+
 -- TodoFile IO ---
 
 saveTodoFile :: FilePath -> TodoFile -> IO ()
@@ -186,6 +206,43 @@ readTodoFile basePath (HasToday name) =
   fromEither HasToday <$> parseTodoFile basePath name
 readTodoFile _ NoFiles = pure NoFiles
 readTodoFile _ (Error err) = pure $ Error err
+
+readNatWithCap :: Int -> IO Int
+readNatWithCap cap =
+  untilJust $ do
+    putStrLn $
+      "\nPlease enter a number between 1 and "
+        ++ show cap
+        ++ " (or press Ctrl + c to cancel)"
+    parseNatWithCap cap <$> getLine
+
+doneCmd :: FilePath -> [FilePath] -> (Int -> Maybe Int) -> IO ()
+doneCmd basePath todoFiles getX = do
+  todayName <- formatFileName <$> Dates.getCurrentDateTime
+  mToday <- readTodoFile basePath $ todayFile todayName todoFiles
+  today <- case mToday of
+    HasToday file -> pure file
+    HasPrev (TodoFile _ todos _) -> do
+      let todayNew = TodoFile todayName todos []
+      saveTodoFile basePath todayNew
+      putStrLn "Created TODO file from yesterday's\n"
+      putStr $ formatFileWithIndex todayNew
+      pure todayNew
+    Error err -> Exit.die err
+    NoFiles -> do
+      saveTodoFile basePath $ TodoFile todayName [] []
+      putStrLn "Created your first TODO file \\o/"
+      putStrLn "Nothing to mark as done since you just started using TODO :)"
+      Exit.exitSuccess
+  let (TodoFile _ todo _) = today
+  let cap = length todo
+  when (cap == 0) $ do
+    putStrLn "No TODOs for today :)"
+    Exit.exitSuccess
+  i' <- Maybe.fromMaybe (readNatWithCap cap) $ pure <$> getX cap
+  let todayNew = accomplish i' today
+  saveTodoFile basePath todayNew
+  putStr $ formatFileWithIndex todayNew
 
 -- CLI ---
 
@@ -251,6 +308,13 @@ handleCommands basePath todoFiles ("standup" : _) = do
     (_, Error err) -> Exit.die err
     _ -> Exit.die "Something went wrong =/"
   putStr $ standupMsg prev today
+-- Set one of today's TODOs as Accomplished
+--   $ td done
+--   $ td done [x]
+handleCommands basePath todoFiles ["done"] =
+  doneCmd basePath todoFiles $ const Nothing
+handleCommands basePath todoFiles ("done" : i : _) =
+  doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td
 handleCommands basePath todoFiles _ = do
