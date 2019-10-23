@@ -207,9 +207,9 @@ readNatWithCap :: Int -> IO Int
 readNatWithCap cap =
   untilJust $ do
     putStrLn $
-      "\nPlease enter a number between 1 and "
+      "Please enter a number between 1 and "
         ++ show cap
-        ++ " (or press Ctrl + c to cancel)"
+        ++ " (or press Ctrl + c to cancel):"
     parseNatWithCap cap <$> getLine
 
 -- Cmds ---
@@ -331,50 +331,115 @@ doOnboarding basePath = do
   putStrLn "  $ td add Be Awesome\n"
   putStrLn "You can also check your TODOs for the day:\n"
   putStrLn "  $ td\n"
-  putStrLn "And when you finish, don't forget to make things as done:\n"
+  putStrLn "And when you finish a task, don't forget to mark it as done:\n"
   putStrLn "  $ td done 2 # since you are already awesome ;)\n"
+  putStrLn "For more check out the help:\n"
+  putStrLn "  $ td help\n"
   putStrLn "That's all for now. Stay cool! Stay productive!"
   Exit.exitSuccess
+
+help :: IO ()
+help = do
+  putStrLn "TODO (td), a command line tool to handle your daily tasks"
+  putStrLn ""
+  putStrLn "TODO is inspired by \"The Power of the TODO List\""
+  putStrLn "(https://dev.to/jlhcoder/the-power-of-the-todo-list), a simple, yet powerful,"
+  putStrLn "approach to keep track of your daily tasks."
+  putStrLn ""
+  putStrLn "TODO saves your items (on ~/.todos) in a readable format that you can"
+  putStrLn "edit/read/grep yourself. Make sure to checkout the article to learn more."
+  putStrLn ""
+  putStrLn "TODO takes care of the files for your, so you don't have to. It creates a new"
+  putStrLn "one every day when you run any of the commands. All the stuff you did the"
+  putStrLn "previous day stays there and the pending items are copied to today (yup you gotta"
+  putStrLn "finish what you started, eh?)"
+  putStrLn ""
+  putStrLn "Author: gillchristian (https://gillchristian.xyz)"
+  putStrLn ""
+  putStrLn "Version: 0.0.9"
+  putStrLn ""
+  putStrLn "Usage:"
+  putStrLn "  $ td [command] [arguments]"
+  putStrLn ""
+  putStrLn "Commands:"
+  putStrLn "  list:"
+  putStrLn "    Show today's pending and done items."
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td list"
+  putStrLn "      $ td      # no command defualts to list"
+  putStrLn ""
+  putStrLn "  last:"
+  putStrLn "    Show previous day pending and done items."
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td last"
+  putStrLn ""
+  putStrLn "  add:"
+  putStrLn "    Add a new pending item to today's list and show the updated list."
+  putStrLn "    Use quotes when you want to use a symbol that isn't supported by the shell."
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td add Do something awesome today"
+  putStrLn "      $ td add 'Do stuff (not that stuff)'"
+  putStrLn ""
+  putStrLn "  done:"
+  putStrLn "    Mark a pending item as done (Accomplished) and show the updated list."
+  putStrLn "    If no number is provided you will be prompted to input one."
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td done"
+  putStrLn "      $ td done [x]"
+  putStrLn ""
+  putStrLn "  standup:"
+  putStrLn "    List previous day done items and today's pending ones."
+  putStrLn "    This serves as a report for your (you guessed it) standup."
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td standup"
+  putStrLn ""
+  putStrLn "  version:"
+  putStrLn "    Show the version (just in case you'd like to know.)"
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td version"
+  putStrLn "      $ td --version"
+  putStrLn ""
+  putStrLn "  help:"
+  putStrLn "    Show this message. Duh!"
+  putStrLn ""
+  putStrLn "    Usage:"
+  putStrLn "      $ td help"
+  putStrLn "      $ td --help"
 
 -- CLI ---
 
 handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
---   $ td add [word...]
 handleCommands _ _ ["add"] = do
   putStrLn "Nothing to add. Make sure to provide the TODO content:"
   putStrLn " $ td add [word...]"
 handleCommands basePath todoFiles ("add" : todo) =
   addCmd basePath todoFiles $ List.intercalate " " todo
 -- Prints the last file (that is not today's one)
---   $ td last
-handleCommands basePath todoFiles ("last" : _) =
-  lastCmd basePath todoFiles
+handleCommands basePath todoFiles ("last" : _) = lastCmd basePath todoFiles
 -- Lists last's dones and today's todos
---   $ td standup
 handleCommands basePath todoFiles ("standup" : _) =
   standupCmd basePath todoFiles
 -- Set one of today's TODOs as Accomplished
---   $ td done
---   $ td done [x]
 handleCommands basePath todoFiles ["done"] =
   doneCmd basePath todoFiles $ const Nothing
 handleCommands basePath todoFiles ("done" : i : _) =
   doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
 -- Show version
---   $ td version
---   $ td v
-handleCommands _ _ ("version" : _) =
-  putStrLn "v0.0.9"
-handleCommands _ _ ("v" : _) =
-  putStrLn "v0.0.9"
+handleCommands _ _ ("version" : _) = putStrLn "v0.0.9"
+handleCommands _ _ ("--version" : _) = putStrLn "v0.0.9"
+-- Show help
+handleCommands _ _ ("help" : _) = help
+handleCommands _ _ ("--help" : _) = help
 -- Lists today's file (creates it if it doesn't exist)
---   $ td list
---   $ td
-handleCommands basePath todoFiles ("list" : _) =
-  listCmd basePath todoFiles
-handleCommands basePath todoFiles _ =
-  listCmd basePath todoFiles
+handleCommands basePath todoFiles ("list" : _) = listCmd basePath todoFiles
+handleCommands basePath todoFiles _ = listCmd basePath todoFiles
 
 runCli :: IO ()
 runCli = do
