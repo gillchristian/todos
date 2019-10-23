@@ -346,6 +346,13 @@ handleCommands basePath todoFiles ["done"] =
   doneCmd basePath todoFiles $ const Nothing
 handleCommands basePath todoFiles ("done" : i : _) =
   doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
+-- Show version
+--   $ td version
+--   $ td v
+handleCommands basePath todoFiles ("version" : _) =
+  putStrLn "v0.0.9"
+handleCommands basePath todoFiles ("v" : _) =
+  putStrLn "v0.0.9"
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td list
 --   $ td
