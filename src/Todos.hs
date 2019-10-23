@@ -112,10 +112,6 @@ standupMsg (TodoFile prevName _ prevDone) (TodoFile _ todayTodo _) =
 
 -- Paths ---
 
-withHomeDir :: FilePath -> FilePath -> FilePath
-withHomeDir ('~' : name) home = home ++ name
-withHomeDir relative _ = relative
-
 (//) :: FilePath -> FilePath -> FilePath
 a // ('/' : b) = a ++ "/" ++ b
 a // b = a ++ "/" ++ b
@@ -321,6 +317,25 @@ listCmd basePath todoFiles = do
       putStr $ formatFileWithIndex file
     Error err -> Exit.die err
 
+doOnboarding :: FilePath -> IO ()
+doOnboarding basePath = do
+  Dir.createDirectory basePath
+  todayName <- formatFileName <$> Dates.getCurrentDateTime
+  saveTodoFile basePath $ TodoFile todayName [] []
+  putStrLn "Welcome to TODO :)\n"
+  putStrLn $ "Created TODO directory (" ++ basePath ++ ") ..."
+  putStrLn "This is were your TODOs are stored\n"
+  putStrLn "Also went ahead and created your first TODO file,"
+  putStrLn "it's empty for now, try adding things to do:\n"
+  putStrLn "  $ td add Get started with TODO"
+  putStrLn "  $ td add Be Awesome\n"
+  putStrLn "You can also check your TODOs for the day:\n"
+  putStrLn "  $ td\n"
+  putStrLn "And when you finish, don't forget to make things as done:\n"
+  putStrLn "  $ td done 2 # since you are already awesome ;)\n"
+  putStrLn "That's all for now. Stay cool! Stay productive!"
+  Exit.exitSuccess
+
 -- CLI ---
 
 handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
@@ -349,9 +364,9 @@ handleCommands basePath todoFiles ("done" : i : _) =
 -- Show version
 --   $ td version
 --   $ td v
-handleCommands basePath todoFiles ("version" : _) =
+handleCommands _ _ ("version" : _) =
   putStrLn "v0.0.9"
-handleCommands basePath todoFiles ("v" : _) =
+handleCommands _ _ ("v" : _) =
   putStrLn "v0.0.9"
 -- Lists today's file (creates it if it doesn't exist)
 --   $ td list
@@ -363,7 +378,9 @@ handleCommands basePath todoFiles _ =
 
 runCli :: IO ()
 runCli = do
-  basePath <- withHomeDir "~/.todos/" <$> Dir.getHomeDirectory
+  basePath <- (// ".todos") <$> Dir.getHomeDirectory
+  hasBasePath <- Dir.doesDirectoryExist basePath
+  when (not hasBasePath) $ doOnboarding basePath
   todoFiles <- sortTodoFiles <$> Dir.listDirectory basePath
   args <- Env.getArgs
   handleCommands basePath todoFiles args
