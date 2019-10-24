@@ -34,7 +34,7 @@ finish what you started, eh?)
 
 AUTHOR: gillchristian (https://gillchristian.xyz)
 
-VERSION: 0.0.10
+VERSION: 0.0.11
 
 USAGE:
   $ td [command] [arguments]
