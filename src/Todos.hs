@@ -356,7 +356,7 @@ help = do
   putStrLn ""
   putStrLn "AUTHOR: gillchristian (https://gillchristian.xyz)"
   putStrLn ""
-  putStrLn "VERSION: 0.0.9"
+  putStrLn "VERSION: 0.0.11"
   putStrLn ""
   putStrLn "USAGE:"
   putStrLn "  $ td [command] [arguments]"
@@ -416,9 +416,9 @@ help = do
 
 handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
-handleCommands _ _ ["add"] = do
-  putStrLn "Nothing to add. Make sure to provide the TODO content:"
-  putStrLn " $ td add [word...]"
+handleCommands basePath todoFiles ["add"] = do
+  putStrLn "What is it that you are going to do today?"
+  getLine >>= addCmd basePath todoFiles
 handleCommands basePath todoFiles ("add" : todo) =
   addCmd basePath todoFiles $ List.intercalate " " todo
 -- Prints the last file (that is not today's one)
@@ -432,8 +432,8 @@ handleCommands basePath todoFiles ["done"] =
 handleCommands basePath todoFiles ("done" : i : _) =
   doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
 -- Show version
-handleCommands _ _ ("version" : _) = putStrLn "v0.0.10"
-handleCommands _ _ ("--version" : _) = putStrLn "v0.0.10"
+handleCommands _ _ ("version" : _) = putStrLn "v0.0.11"
+handleCommands _ _ ("--version" : _) = putStrLn "v0.0.11"
 -- Show help
 handleCommands _ _ ("help" : _) = help
 handleCommands _ _ ("--help" : _) = help
