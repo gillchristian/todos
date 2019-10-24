@@ -32,14 +32,14 @@ one every day when you run any of the commands. All the stuff you did the
 previous day stays there and the pending items are copied to today (yup you gotta
 finish what you started, eh?)
 
-Author: gillchristian (https://gillchristian.xyz)
+AUTHOR: gillchristian (https://gillchristian.xyz)
 
-Version: 0.0.9
+VERSION: 0.0.10
 
-Usage:
+USAGE:
   $ td [command] [arguments]
 
-Commands:
+COMMANDS:
   list:
     Show today's pending and done items.
 

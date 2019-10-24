@@ -354,14 +354,14 @@ help = do
   putStrLn "previous day stays there and the pending items are copied to today (yup you gotta"
   putStrLn "finish what you started, eh?)"
   putStrLn ""
-  putStrLn "Author: gillchristian (https://gillchristian.xyz)"
+  putStrLn "AUTHOR: gillchristian (https://gillchristian.xyz)"
   putStrLn ""
-  putStrLn "Version: 0.0.9"
+  putStrLn "VERSION: 0.0.9"
   putStrLn ""
-  putStrLn "Usage:"
+  putStrLn "USAGE:"
   putStrLn "  $ td [command] [arguments]"
   putStrLn ""
-  putStrLn "Commands:"
+  putStrLn "COMMANDS:"
   putStrLn "  list:"
   putStrLn "    Show today's pending and done items."
   putStrLn ""
@@ -432,8 +432,8 @@ handleCommands basePath todoFiles ["done"] =
 handleCommands basePath todoFiles ("done" : i : _) =
   doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
 -- Show version
-handleCommands _ _ ("version" : _) = putStrLn "v0.0.9"
-handleCommands _ _ ("--version" : _) = putStrLn "v0.0.9"
+handleCommands _ _ ("version" : _) = putStrLn "v0.0.10"
+handleCommands _ _ ("--version" : _) = putStrLn "v0.0.10"
 -- Show help
 handleCommands _ _ ("help" : _) = help
 handleCommands _ _ ("--help" : _) = help
