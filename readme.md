@@ -91,7 +91,7 @@ COMMANDS:
       $ td --help
 ```
 
-## TO-DO
+## TO-DO :drum:
 
 - [x] `$ td` (lists today's todo/done)
 - [x] `$ td last` (list previous's day todo/done)
