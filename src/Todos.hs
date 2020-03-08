@@ -6,7 +6,9 @@ module Todos
 where
 
 import Control.Monad (unless, void, when)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (untilJust)
+import qualified Control.Monad.Trans.Reader as R
 import qualified Data.Dates as Dates
 import qualified Data.Dates.Formats as Dates
 import qualified Data.List as List
@@ -62,6 +64,12 @@ parseNatWithCap cap s = readMaybe s >>= checkCap
       | otherwise = Just x
 
 -- Types ---
+
+data Env
+  = Env {getBasePath :: FilePath}
+  deriving (Show, Eq)
+
+type App = R.ReaderT Env IO
 
 type Todo = String
 
@@ -179,25 +187,26 @@ accomplish n (TodoFile name todo done)
   where
     i = n - 1 -- n is the TODO number, i is the index
 
--- TodoFile IO ---
+-- TodoFile Effects ---
 
-saveTodoFile :: FilePath -> TodoFile -> IO ()
-saveTodoFile basePath tdf = writeFile (basePath </> path tdf) $ show tdf
+saveTodoFile :: TodoFile -> App ()
+saveTodoFile tdf = do
+  filePath <- R.asks ((</> path tdf) . getBasePath)
+  liftIO $ writeFile filePath $ show tdf
 
-parseTodoFile :: FilePath -> FilePath -> IO (Either Parsec.ParseError TodoFile)
-parseTodoFile basePath name =
-  Parsec.parseFromFile (todoFileParser name) (basePath </> name)
+parseTodoFile :: FilePath -> App (Either Parsec.ParseError TodoFile)
+parseTodoFile name = do
+  filePath <- R.asks ((</> name) . getBasePath)
+  liftIO $ Parsec.parseFromFile (todoFileParser name) filePath
 
 fromEither :: (a -> FileType a) -> Either Parsec.ParseError a -> FileType a
 fromEither = either (Error . show)
 
-readTodoFile :: FilePath -> FileType FilePath -> IO (FileType TodoFile)
-readTodoFile basePath (HasPrev name) =
-  fromEither HasPrev <$> parseTodoFile basePath name
-readTodoFile basePath (HasToday name) =
-  fromEither HasToday <$> parseTodoFile basePath name
-readTodoFile _ NoFiles = pure NoFiles
-readTodoFile _ (Error err) = pure $ Error err
+readTodoFile :: FileType FilePath -> App (FileType TodoFile)
+readTodoFile (HasPrev name) = fromEither HasPrev <$> parseTodoFile name
+readTodoFile (HasToday name) = fromEither HasToday <$> parseTodoFile name
+readTodoFile NoFiles = pure NoFiles
+readTodoFile (Error err) = pure $ Error err
 
 readNatWithCap :: Int -> IO Int
 readNatWithCap cap =
@@ -208,46 +217,49 @@ readNatWithCap cap =
         ++ " (or press Ctrl + c to cancel):"
     parseNatWithCap cap <$> getLine
 
+getTodayName :: App FilePath
+getTodayName = liftIO $ fmap formatFileName Dates.getCurrentDateTime
+
 -- Cmds ---
 
-addCmd :: FilePath -> [FilePath] -> String -> IO ()
-addCmd basePath todoFiles newTodo = do
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  fileType <- readTodoFile basePath $ todayFile todayName todoFiles
+addCmd :: [FilePath] -> String -> App ()
+addCmd todoFiles newTodo = do
+  todayName <- getTodayName
+  fileType <- readTodoFile $ todayFile todayName todoFiles
   file <- case addTodo newTodo <$> fileType of
     HasPrev (TodoFile _ todos dones) -> pure $ TodoFile todayName todos dones
     HasToday file -> pure file
-    Error err -> Exit.die err
+    Error err -> liftIO $ Exit.die err
     NoFiles -> do
-      putStrLn "Creating your first TODO file \\o/\n"
+      liftIO $ putStrLn "Creating your first TODO file \\o/\n"
       pure $ TodoFile todayName [newTodo] []
-  saveTodoFile basePath file
-  putStr $ formatFileWithIndex file
+  saveTodoFile file
+  liftIO $ putStr $ formatFileWithIndex file
 
-lastCmd :: FilePath -> [FilePath] -> IO ()
-lastCmd basePath todoFiles = do
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  eitherPrevFile <- readTodoFile basePath $ prevFile todayName todoFiles
+lastCmd :: [FilePath] -> App ()
+lastCmd todoFiles = do
+  todayName <- getTodayName
+  eitherPrevFile <- readTodoFile $ prevFile todayName todoFiles
   prevF <- case eitherPrevFile of
     HasPrev file -> pure file
-    HasToday _ -> Exit.die "No last file"
+    HasToday _ -> liftIO $ Exit.die "No last file"
     NoFiles ->
-      Exit.die $
+      liftIO $ Exit.die $
         "You don't have any TODO files yet :)\n"
           ++ "Run the add or list commands to create your first file.\n"
           ++ "  $ td\n"
           ++ "  $ td add 'Start creating todos'"
-    Error err -> Exit.die err
+    Error err -> liftIO $ Exit.die err
   case parseFileName $ path prevF of
-    Right date -> putStrLn $ "td file: " ++ yyyyMmDd date ++ "\n"
-    Left err -> printStderr err
-  putStr $ formatFileWithIndex prevF
+    Right date -> liftIO $ putStrLn $ "td file: " ++ yyyyMmDd date ++ "\n"
+    Left err -> liftIO $ printStderr err
+  liftIO $ putStr $ formatFileWithIndex prevF
 
-standupCmd :: FilePath -> [FilePath] -> IO ()
-standupCmd basePath todoFiles = do
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  mToday <- readTodoFile basePath $ todayFile todayName todoFiles
-  mPrev <- readTodoFile basePath $ prevFile todayName todoFiles
+standupCmd :: [FilePath] -> App ()
+standupCmd todoFiles = do
+  todayName <- getTodayName
+  mToday <- readTodoFile $ todayFile todayName todoFiles
+  mPrev <- readTodoFile $ prevFile todayName todoFiles
   (prev, today) <- case (mPrev, mToday) of
     -- Yay we have both files!
     (HasPrev prev, HasToday today) -> pure (prev, today)
@@ -257,191 +269,194 @@ standupCmd basePath todoFiles = do
     (HasPrev prev, HasPrev _) -> do
       let (TodoFile _ prevTodos _) = prev
       let todayNew = TodoFile todayName prevTodos []
-      saveTodoFile basePath todayNew
-      putStrLn "Created TODO file from yesterday's\n"
+      saveTodoFile todayNew
+      liftIO $ putStrLn "Created TODO file from yesterday's\n"
       pure (prev, todayNew)
-    (NoFiles, _) -> Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
-    (_, NoFiles) -> Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
-    (Error err, _) -> Exit.die err
-    (_, Error err) -> Exit.die err
-    _ -> Exit.die "Something went wrong =/"
-  putStr $ standupMsg prev today
+    (NoFiles, _) ->
+      liftIO $ Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
+    (_, NoFiles) ->
+      liftIO $ Exit.die "No TODO files yet. Try:\n  $ td add 'Some stuff'"
+    (Error err, _) -> liftIO $ Exit.die err
+    (_, Error err) -> liftIO $ Exit.die err
+    _ -> liftIO $ Exit.die "Something went wrong =/"
+  liftIO $ putStr $ standupMsg prev today
 
-createFromYesterday :: FilePath -> FilePath -> [String] -> IO TodoFile
-createFromYesterday basePath todayName todos = do
+createFromYesterday :: FilePath -> [String] -> App TodoFile
+createFromYesterday todayName todos = do
   let todayNew = TodoFile todayName todos []
-  saveTodoFile basePath todayNew
-  putStrLn "Created TODO file from yesterday's\n"
-  putStr $ formatFileWithIndex todayNew
+  saveTodoFile todayNew
+  liftIO $ putStrLn "Created TODO file from yesterday's\n"
+  liftIO $ putStr $ formatFileWithIndex todayNew
   pure todayNew
 
-doneCmd :: FilePath -> [FilePath] -> (Int -> Maybe Int) -> IO ()
-doneCmd basePath todoFiles getX = do
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  mToday <- readTodoFile basePath $ todayFile todayName todoFiles
+doneCmd :: [FilePath] -> (Int -> Maybe Int) -> App ()
+doneCmd todoFiles getX = do
+  todayName <- getTodayName
+  mToday <- readTodoFile $ todayFile todayName todoFiles
   today <- case mToday of
     HasToday file -> pure file
-    HasPrev (TodoFile _ todos _) -> createFromYesterday basePath todayName todos
-    Error err -> Exit.die err
+    HasPrev (TodoFile _ todos _) -> createFromYesterday todayName todos
+    Error err -> liftIO $ Exit.die err
     NoFiles -> do
-      saveTodoFile basePath $ TodoFile todayName [] []
-      putStrLn "Created your first TODO file \\o/"
-      putStrLn "Nothing to mark as done since you just started using TODO :)"
-      Exit.exitSuccess
+      saveTodoFile $ TodoFile todayName [] []
+      liftIO $ putStrLn "Created your first TODO file \\o/"
+      liftIO $ putStrLn "Nothing to mark as done since you just started using TODO :)"
+      liftIO Exit.exitSuccess
   let (TodoFile _ todo _) = today
   let cap = length todo
   when (cap == 0) $ do
-    putStrLn "No TODOs for today :)"
-    Exit.exitSuccess
-  i' <- maybe (readNatWithCap cap) pure $ getX cap
+    liftIO $ putStrLn "No TODOs for today :)"
+    liftIO Exit.exitSuccess
+  i' <- maybe (liftIO $ readNatWithCap cap) pure $ getX cap
   let todayNew = accomplish i' today
-  saveTodoFile basePath todayNew
-  putStr $ formatFileWithIndex todayNew
+  saveTodoFile todayNew
+  liftIO $ putStr $ formatFileWithIndex todayNew
 
-listCmd :: FilePath -> [FilePath] -> IO ()
-listCmd basePath todoFiles = do
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  mToday <- readTodoFile basePath $ todayFile todayName todoFiles
+listCmd :: [FilePath] -> App ()
+listCmd todoFiles = do
+  todayName <- getTodayName
+  mToday <- readTodoFile $ todayFile todayName todoFiles
   case mToday of
-    HasToday file -> putStr $ formatFileWithIndex file
-    HasPrev (TodoFile _ todos _) ->
-      void $ createFromYesterday basePath todayName todos
+    HasToday file -> liftIO $ putStr $ formatFileWithIndex file
+    HasPrev (TodoFile _ todos _) -> void $ createFromYesterday todayName todos
     NoFiles -> do
       let file = TodoFile todayName [] []
-      saveTodoFile basePath file
-      putStrLn "Created your first TODO file \\o/\n"
-      putStr $ formatFileWithIndex file
-    Error err -> Exit.die err
+      saveTodoFile file
+      liftIO $ putStrLn "Created your first TODO file \\o/\n"
+      liftIO $ putStr $ formatFileWithIndex file
+    Error err -> liftIO $ Exit.die err
 
-doOnboarding :: FilePath -> IO ()
-doOnboarding basePath = do
-  Dir.createDirectory basePath
-  todayName <- formatFileName <$> Dates.getCurrentDateTime
-  saveTodoFile basePath $ TodoFile todayName [] []
-  putStrLn "Welcome to TODO :)\n"
-  putStrLn $ "Created TODO directory (" ++ basePath ++ ") ..."
-  putStrLn "This is were your TODOs are stored\n"
-  putStrLn "Also went ahead and created your first TODO file,"
-  putStrLn "it's empty for now, try adding things to do:\n"
-  putStrLn "  $ td add Get started with TODO"
-  putStrLn "  $ td add Be Awesome\n"
-  putStrLn "You can also check your TODOs for the day:\n"
-  putStrLn "  $ td\n"
-  putStrLn "And when you finish a task, don't forget to mark it as done:\n"
-  putStrLn "  $ td done 2 # since you are already awesome ;)\n"
-  putStrLn "For more check out the help:\n"
-  putStrLn "  $ td help\n"
-  putStrLn "That's all for now. Stay cool! Stay productive!"
-  Exit.exitSuccess
+doOnboarding :: App ()
+doOnboarding = do
+  basePath <- R.asks getBasePath
+  liftIO $ Dir.createDirectory basePath
+  todayName <- getTodayName
+  saveTodoFile $ TodoFile todayName [] []
+  liftIO $ putStrLn "Welcome to TODO :)\n"
+  liftIO $ putStrLn $ "Created TODO directory (" ++ basePath ++ ") ..."
+  liftIO $ putStrLn "This is were your TODOs are stored\n"
+  liftIO $ putStrLn "Also went ahead and created your first TODO file,"
+  liftIO $ putStrLn "it's empty for now, try adding things to do:\n"
+  liftIO $ putStrLn "  $ td add Get started with TODO"
+  liftIO $ putStrLn "  $ td add Be Awesome\n"
+  liftIO $ putStrLn "You can also check your TODOs for the day:\n"
+  liftIO $ putStrLn "  $ td\n"
+  liftIO $ putStrLn "And when you finish a task, don't forget to mark it as done:\n"
+  liftIO $ putStrLn "  $ td done 2 # since you are already awesome ;)\n"
+  liftIO $ putStrLn "For more check out the help:\n"
+  liftIO $ putStrLn "  $ td help\n"
+  liftIO $ putStrLn "That's all for now. Stay cool! Stay productive!"
+  liftIO Exit.exitSuccess
 
-help :: IO ()
+help :: App ()
 help = do
-  putStrLn "TODO (td), a command line tool to handle your daily tasks"
-  putStrLn ""
-  putStrLn "TODO is inspired by \"The Power of the TODO List\""
-  putStrLn "(https://dev.to/jlhcoder/the-power-of-the-todo-list), a simple, yet powerful,"
-  putStrLn "approach to keep track of your daily tasks."
-  putStrLn ""
-  putStrLn "TODO saves your items (on ~/.todos) in a readable format that you can"
-  putStrLn "edit/read/grep yourself. Make sure to checkout the article to learn more."
-  putStrLn ""
-  putStrLn "TODO takes care of the files for your, so you don't have to. It creates a new"
-  putStrLn "one every day when you run any of the commands. All the stuff you did the"
-  putStrLn "previous day stays there and the pending items are copied to today (yup you"
-  putStrLn "gotta finish what you started, eh?)"
-  putStrLn ""
-  putStrLn "AUTHOR: gillchristian (https://gillchristian.xyz)"
-  putStrLn ""
-  putStrLn "VERSION: 0.0.12"
-  putStrLn ""
-  putStrLn "USAGE:"
-  putStrLn "  $ td [command] [arguments]"
-  putStrLn ""
-  putStrLn "COMMANDS:"
-  putStrLn "  list:"
-  putStrLn "    Show today's pending and done items."
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td list"
-  putStrLn "      $ td      # no command defualts to list"
-  putStrLn ""
-  putStrLn "  last:"
-  putStrLn "    Show previous day pending and done items."
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td last"
-  putStrLn ""
-  putStrLn "  add:"
-  putStrLn "    Add a new pending item to today's list and show the updated list."
-  putStrLn "    Use quotes when you want to use a symbol that isn't supported by the shell."
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td add Do something awesome today"
-  putStrLn "      $ td add 'Do stuff (not that stuff)'"
-  putStrLn ""
-  putStrLn "  done:"
-  putStrLn "    Mark a pending item as done (Accomplished) and show the updated list."
-  putStrLn "    If no number is provided you will be prompted to input one."
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td done"
-  putStrLn "      $ td done [x]"
-  putStrLn ""
-  putStrLn "  standup:"
-  putStrLn "    List previous day done items and today's pending ones."
-  putStrLn "    This serves as a report for your (you guessed it) standup."
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td standup"
-  putStrLn ""
-  putStrLn "  version:"
-  putStrLn "    Show the version (just in case you'd like to know.)"
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td version"
-  putStrLn "      $ td --version"
-  putStrLn ""
-  putStrLn "  help:"
-  putStrLn "    Show this message. Duh!"
-  putStrLn ""
-  putStrLn "    Usage:"
-  putStrLn "      $ td help"
-  putStrLn "      $ td --help"
+  liftIO $ putStrLn "TODO (td), a command line tool to handle your daily tasks"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "TODO is inspired by \"The Power of the TODO List\""
+  liftIO $ putStrLn "(https://dev.to/jlhcoder/the-power-of-the-todo-list), a simple, yet powerful,"
+  liftIO $ putStrLn "approach to keep track of your daily tasks."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "TODO saves your items (on ~/.todos) in a readable format that you can"
+  liftIO $ putStrLn "edit/read/grep yourself. Make sure to checkout the article to learn more."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "TODO takes care of the files for your, so you don't have to. It creates a new"
+  liftIO $ putStrLn "one every day when you run any of the commands. All the stuff you did the"
+  liftIO $ putStrLn "previous day stays there and the pending items are copied to today (yup you"
+  liftIO $ putStrLn "gotta finish what you started, eh?)"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "AUTHOR: gillchristian (https://gillchristian.xyz)"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "VERSION: 0.0.12"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "USAGE:"
+  liftIO $ putStrLn "  $ td [command] [arguments]"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "COMMANDS:"
+  liftIO $ putStrLn "  list:"
+  liftIO $ putStrLn "    Show today's pending and done items."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td list"
+  liftIO $ putStrLn "      $ td      # no command defualts to list"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  last:"
+  liftIO $ putStrLn "    Show previous day pending and done items."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td last"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  add:"
+  liftIO $ putStrLn "    Add a new pending item to today's list and show the updated list."
+  liftIO $ putStrLn "    Use quotes when you want to use a symbol that isn't supported by the shell."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td add Do something awesome today"
+  liftIO $ putStrLn "      $ td add 'Do stuff (not that stuff)'"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  done:"
+  liftIO $ putStrLn "    Mark a pending item as done (Accomplished) and show the updated list."
+  liftIO $ putStrLn "    If no number is provided you will be prompted to input one."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td done"
+  liftIO $ putStrLn "      $ td done [x]"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  standup:"
+  liftIO $ putStrLn "    List previous day done items and today's pending ones."
+  liftIO $ putStrLn "    This serves as a report for your (you guessed it) standup."
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td standup"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  version:"
+  liftIO $ putStrLn "    Show the version (just in case you'd like to know.)"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td version"
+  liftIO $ putStrLn "      $ td --version"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "  help:"
+  liftIO $ putStrLn "    Show this message. Duh!"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "    Usage:"
+  liftIO $ putStrLn "      $ td help"
+  liftIO $ putStrLn "      $ td --help"
 
 -- CLI ---
 
-handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
+handleCommands :: [FilePath] -> [String] -> App ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
-handleCommands basePath todoFiles ["add"] = do
-  putStrLn "What is it that you are going to do today?"
-  addCmd basePath todoFiles =<< getLine
-handleCommands basePath todoFiles ("add" : todo) =
-  addCmd basePath todoFiles $ unwords todo
+handleCommands todoFiles ["add"] = do
+  liftIO $ putStrLn "What is it that you are going to do today?"
+  addCmd todoFiles =<< liftIO getLine
+handleCommands todoFiles ("add" : todo) =
+  addCmd todoFiles $ unwords todo
 -- Prints the last file (that is not today's one)
-handleCommands basePath todoFiles ("last" : _) = lastCmd basePath todoFiles
+handleCommands todoFiles ("last" : _) = lastCmd todoFiles
 -- Lists last's dones and today's todos
-handleCommands basePath todoFiles ("standup" : _) =
-  standupCmd basePath todoFiles
+handleCommands todoFiles ("standup" : _) =
+  standupCmd todoFiles
 -- Set one of today's TODOs as Accomplished
-handleCommands basePath todoFiles ["done"] =
-  doneCmd basePath todoFiles $ const Nothing
-handleCommands basePath todoFiles ("done" : i : _) =
-  doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
+handleCommands todoFiles ["done"] =
+  doneCmd todoFiles $ const Nothing
+handleCommands todoFiles ("done" : i : _) =
+  doneCmd todoFiles $ \cap -> parseNatWithCap cap i
 -- Show version
-handleCommands _ _ ("version" : _) = putStrLn "v0.0.12"
-handleCommands _ _ ("--version" : _) = putStrLn "v0.0.12"
+handleCommands _ ("version" : _) = liftIO $ putStrLn "v0.0.12"
+handleCommands _ ("--version" : _) = liftIO $ putStrLn "v0.0.12"
 -- Show help
-handleCommands _ _ ("help" : _) = help
-handleCommands _ _ ("--help" : _) = help
+handleCommands _ ("help" : _) = help
+handleCommands _ ("--help" : _) = help
 -- Lists today's file (creates it if it doesn't exist)
-handleCommands basePath todoFiles ("list" : _) = listCmd basePath todoFiles
-handleCommands basePath todoFiles _ = listCmd basePath todoFiles
+handleCommands todoFiles ("list" : _) = listCmd todoFiles
+handleCommands todoFiles _ = listCmd todoFiles
 
 runCli :: IO ()
 runCli = do
   basePath <- (</> ".todos") <$> Dir.getHomeDirectory
   hasBasePath <- Dir.doesDirectoryExist basePath
-  unless hasBasePath $ doOnboarding basePath
+  let env = Env {getBasePath = basePath}
+  unless hasBasePath $ R.runReaderT doOnboarding env
   todoFiles <- sortTodoFiles <$> Dir.listDirectory basePath
   args <- Env.getArgs
-  handleCommands basePath todoFiles args
+  R.runReaderT (handleCommands todoFiles args) env
