@@ -19,6 +19,7 @@ description:         Please see the README on GitHub at <https://github.com/gill
 dependencies:
 - base >= 4.7 && < 5
 - directory
+- filepath
 - parsec
 - dates >= 0.2.3.0 && < 0.3
 - monad-loops

@@ -5,15 +5,16 @@ module Todos
   )
 where
 
-import Control.Monad (void, when)
+import Control.Monad (unless, void, when)
 import Control.Monad.Loops (untilJust)
 import qualified Data.Dates as Dates
 import qualified Data.Dates.Formats as Dates
 import qualified Data.List as List
-import qualified Data.Maybe as Maybe
+import qualified Data.Ord as Ord
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
+import System.FilePath ((</>))
 import qualified System.IO as Sys
 import qualified Text.Parsec as Parsec
 import qualified Text.Parsec.Char as ParsecChar
@@ -44,7 +45,7 @@ todoFileParser :: FilePath -> Parser TodoFile
 todoFileParser name = do
   void $ ParsecChar.string "TODOS" *> ParsecChar.endOfLine
   todos <- Parsec.many line
-  void $ ParsecChar.endOfLine
+  void ParsecChar.endOfLine
   void $ ParsecChar.string "Accomplished"
   eolOrEof
   TodoFile name todos <$> Parsec.many line
@@ -78,10 +79,10 @@ formatLineWithIndex :: (Int, String) -> String
 formatLineWithIndex (i, item) = "- " ++ show i ++ ": " ++ item ++ "\n"
 
 formatItems :: [String] -> String
-formatItems = concat . fmap formatLine
+formatItems = concatMap formatLine
 
 formatItemsWithIndex :: [String] -> String
-formatItemsWithIndex = concat . fmap formatLineWithIndex . List.zip [1 ..]
+formatItemsWithIndex = concatMap formatLineWithIndex . List.zip [1 ..]
 
 itemsOrMsg :: String -> [String] -> String
 itemsOrMsg msg [] = msg
@@ -103,30 +104,25 @@ formatFileWithIndex (TodoFile _ todos dones) =
 
 standupMsg :: TodoFile -> TodoFile -> String
 standupMsg (TodoFile prevName _ prevDone) (TodoFile _ todayTodo _) =
-  "Accomplished (" ++ either (const "yesterday?") yyyyMmDd prevDate ++ ")\n"
+  -- TODO: 'yesterday' -> '
+  "Accomplished (" ++ either (const "yesterday?") yyyyMmDd ePrevDate ++ ")\n"
     ++ itemsOrMsg "Looks like you did not work yesterday ...\n" prevDone
     ++ "\nTODO today\n"
     ++ itemsOrMsg "No work for today? Try\n  $ td add 'Do stuff'\n" todayTodo
   where
-    prevDate = parseFileName prevName
-
--- Paths ---
-
-(//) :: FilePath -> FilePath -> FilePath
-a // ('/' : b) = a ++ "/" ++ b
-a // b = a ++ "/" ++ b
+    ePrevDate = parseFileName prevName
 
 --- TodoFile utils ---
 
 sortTodoFiles :: [FilePath] -> [FilePath]
-sortTodoFiles = List.reverse . List.sort . filter (List.isSuffixOf ".txt")
+sortTodoFiles = List.sortOn Ord.Down . filter (List.isSuffixOf ".txt")
 
 formatFileName :: Dates.DateTime -> String
 formatFileName d =
-  (show $ Dates.year d) ++ "-"
-    ++ (printf "%02d" $ Dates.month d)
+  show (Dates.year d) ++ "-"
+    ++ printf "%02d" (Dates.month d)
     ++ "-"
-    ++ (printf "%02d" $ Dates.day d)
+    ++ printf "%02d" (Dates.day d)
     ++ ".txt"
 
 path :: TodoFile -> FilePath
@@ -137,10 +133,10 @@ addTodo todo (TodoFile name todos dones) = TodoFile name (todos ++ [todo]) dones
 
 yyyyMmDd :: Dates.DateTime -> String
 yyyyMmDd d =
-  (show $ Dates.year d) ++ "/"
-    ++ (printf "%02d" $ Dates.month d)
+  show (Dates.year d) ++ "/"
+    ++ printf "%02d" (Dates.month d)
     ++ "/"
-    ++ (printf "%02d" $ Dates.day d)
+    ++ printf "%02d" (Dates.day d)
 
 data FileType a
   = NoFiles
@@ -177,8 +173,8 @@ prevFile today (prev : rest) =
 accomplish :: Int -> TodoFile -> TodoFile
 accomplish n (TodoFile name todo done)
   | i >= 0 && i < length todo =
-    let (before, (item : rest)) = splitAt i todo
-     in TodoFile name (before ++ rest) $ (done ++ [item])
+    let (before, item : rest) = splitAt i todo
+     in TodoFile name (before ++ rest) (done ++ [item])
   | otherwise = TodoFile name todo done
   where
     i = n - 1 -- n is the TODO number, i is the index
@@ -186,14 +182,14 @@ accomplish n (TodoFile name todo done)
 -- TodoFile IO ---
 
 saveTodoFile :: FilePath -> TodoFile -> IO ()
-saveTodoFile basePath tdf = writeFile (basePath // path tdf) $ show tdf
+saveTodoFile basePath tdf = writeFile (basePath </> path tdf) $ show tdf
 
 parseTodoFile :: FilePath -> FilePath -> IO (Either Parsec.ParseError TodoFile)
 parseTodoFile basePath name =
-  Parsec.parseFromFile (todoFileParser name) (basePath // name)
+  Parsec.parseFromFile (todoFileParser name) (basePath </> name)
 
 fromEither :: (a -> FileType a) -> Either Parsec.ParseError a -> FileType a
-fromEither f = either (Error . show) f
+fromEither = either (Error . show)
 
 readTodoFile :: FilePath -> FileType FilePath -> IO (FileType TodoFile)
 readTodoFile basePath (HasPrev name) =
@@ -271,18 +267,21 @@ standupCmd basePath todoFiles = do
     _ -> Exit.die "Something went wrong =/"
   putStr $ standupMsg prev today
 
+createFromYesterday :: FilePath -> FilePath -> [String] -> IO TodoFile
+createFromYesterday basePath todayName todos = do
+  let todayNew = TodoFile todayName todos []
+  saveTodoFile basePath todayNew
+  putStrLn "Created TODO file from yesterday's\n"
+  putStr $ formatFileWithIndex todayNew
+  pure todayNew
+
 doneCmd :: FilePath -> [FilePath] -> (Int -> Maybe Int) -> IO ()
 doneCmd basePath todoFiles getX = do
   todayName <- formatFileName <$> Dates.getCurrentDateTime
   mToday <- readTodoFile basePath $ todayFile todayName todoFiles
   today <- case mToday of
     HasToday file -> pure file
-    HasPrev (TodoFile _ todos _) -> do
-      let todayNew = TodoFile todayName todos []
-      saveTodoFile basePath todayNew
-      putStrLn "Created TODO file from yesterday's\n"
-      putStr $ formatFileWithIndex todayNew
-      pure todayNew
+    HasPrev (TodoFile _ todos _) -> createFromYesterday basePath todayName todos
     Error err -> Exit.die err
     NoFiles -> do
       saveTodoFile basePath $ TodoFile todayName [] []
@@ -294,7 +293,7 @@ doneCmd basePath todoFiles getX = do
   when (cap == 0) $ do
     putStrLn "No TODOs for today :)"
     Exit.exitSuccess
-  i' <- Maybe.fromMaybe (readNatWithCap cap) $ pure <$> getX cap
+  i' <- maybe (readNatWithCap cap) pure $ getX cap
   let todayNew = accomplish i' today
   saveTodoFile basePath todayNew
   putStr $ formatFileWithIndex todayNew
@@ -305,11 +304,8 @@ listCmd basePath todoFiles = do
   mToday <- readTodoFile basePath $ todayFile todayName todoFiles
   case mToday of
     HasToday file -> putStr $ formatFileWithIndex file
-    HasPrev (TodoFile _ todos _) -> do
-      let todayNew = TodoFile todayName todos []
-      saveTodoFile basePath todayNew
-      putStrLn "Created TODO file from yesterday's\n"
-      putStr $ formatFileWithIndex todayNew
+    HasPrev (TodoFile _ todos _) ->
+      void $ createFromYesterday basePath todayName todos
     NoFiles -> do
       let file = TodoFile todayName [] []
       saveTodoFile basePath file
@@ -351,12 +347,12 @@ help = do
   putStrLn ""
   putStrLn "TODO takes care of the files for your, so you don't have to. It creates a new"
   putStrLn "one every day when you run any of the commands. All the stuff you did the"
-  putStrLn "previous day stays there and the pending items are copied to today (yup you gotta"
-  putStrLn "finish what you started, eh?)"
+  putStrLn "previous day stays there and the pending items are copied to today (yup you"
+  putStrLn "gotta finish what you started, eh?)"
   putStrLn ""
   putStrLn "AUTHOR: gillchristian (https://gillchristian.xyz)"
   putStrLn ""
-  putStrLn "VERSION: 0.0.11"
+  putStrLn "VERSION: 0.0.12"
   putStrLn ""
   putStrLn "USAGE:"
   putStrLn "  $ td [command] [arguments]"
@@ -418,9 +414,9 @@ handleCommands :: FilePath -> [FilePath] -> [String] -> IO ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
 handleCommands basePath todoFiles ["add"] = do
   putStrLn "What is it that you are going to do today?"
-  getLine >>= addCmd basePath todoFiles
+  addCmd basePath todoFiles =<< getLine
 handleCommands basePath todoFiles ("add" : todo) =
-  addCmd basePath todoFiles $ List.intercalate " " todo
+  addCmd basePath todoFiles $ unwords todo
 -- Prints the last file (that is not today's one)
 handleCommands basePath todoFiles ("last" : _) = lastCmd basePath todoFiles
 -- Lists last's dones and today's todos
@@ -432,8 +428,8 @@ handleCommands basePath todoFiles ["done"] =
 handleCommands basePath todoFiles ("done" : i : _) =
   doneCmd basePath todoFiles $ \cap -> parseNatWithCap cap i
 -- Show version
-handleCommands _ _ ("version" : _) = putStrLn "v0.0.11"
-handleCommands _ _ ("--version" : _) = putStrLn "v0.0.11"
+handleCommands _ _ ("version" : _) = putStrLn "v0.0.12"
+handleCommands _ _ ("--version" : _) = putStrLn "v0.0.12"
 -- Show help
 handleCommands _ _ ("help" : _) = help
 handleCommands _ _ ("--help" : _) = help
@@ -443,9 +439,9 @@ handleCommands basePath todoFiles _ = listCmd basePath todoFiles
 
 runCli :: IO ()
 runCli = do
-  basePath <- (// ".todos") <$> Dir.getHomeDirectory
+  basePath <- (</> ".todos") <$> Dir.getHomeDirectory
   hasBasePath <- Dir.doesDirectoryExist basePath
-  when (not hasBasePath) $ doOnboarding basePath
+  unless hasBasePath $ doOnboarding basePath
   todoFiles <- sortTodoFiles <$> Dir.listDirectory basePath
   args <- Env.getArgs
   handleCommands basePath todoFiles args

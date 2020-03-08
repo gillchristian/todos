@@ -13,7 +13,8 @@ A to-do's CLI app. Inspired on
 
 **WIP**
 
-_I'm migrating it from Go to Haskell ~because reasons~, still gotta get the installation part sorted out._
+_I'm migrating it from Go to Haskell ~because reasons~, still gotta get the
+installation part sorted out._
 
 ## Usage
 
@@ -29,12 +30,12 @@ edit/read/grep yourself. Make sure to checkout the article to learn more.
 
 TODO takes care of the files for your, so you don't have to. It creates a new
 one every day when you run any of the commands. All the stuff you did the
-previous day stays there and the pending items are copied to today (yup you gotta
-finish what you started, eh?)
+previous day stays there and the pending items are copied to today (yup you
+gotta finish what you started, eh?)
 
 AUTHOR: gillchristian (https://gillchristian.xyz)
 
-VERSION: 0.0.11
+VERSION: 0.0.12
 
 USAGE:
   $ td [command] [arguments]
@@ -98,9 +99,11 @@ COMMANDS:
 - [x] `$ td add <todo item>`
 - [x] `$ td standup` (list previous's day done & today's todo)
 - [x] `$ td done` /  `$ td done [x]`
-- [ ] `$ td rm` / `$ td rm [x]`
-- [x] `$ td init` (instead any command just creates dir and first file if missing)
+- [x] `$ td init` (the other commands takes care of this when not initialized)
 - [x] `$ td help`
 - [x] Create today's file when not found (from previous one).
+- [ ] `$ td rm` / `$ td rm [x]`
+- [ ] Configuration: Directory path
+- [ ] Configuration: Syncronize with GitHub repo (and initialize from there)
 - [ ] Tests :tm:
 
