@@ -32,6 +32,9 @@ import Text.Read (readMaybe)
 printStderr :: Show a => a -> IO ()
 printStderr = Sys.hPrint Sys.stderr
 
+putStrLnStderr :: String -> IO ()
+putStrLnStderr = Sys.hPutStrLn Sys.stderr
+
 -- Parsing ---
 
 eolOrEof :: Parser ()
@@ -65,7 +68,7 @@ parseNatWithCap cap s = readMaybe s >>= checkCap
 
 -- Types ---
 
-data Env
+newtype Env
   = Env {getBasePath :: FilePath}
   deriving (Show, Eq)
 
@@ -84,7 +87,7 @@ formatLine :: String -> String
 formatLine item = "- " ++ item ++ "\n"
 
 formatLineWithIndex :: (Int, String) -> String
-formatLineWithIndex (i, item) = "- " ++ show i ++ ": " ++ item ++ "\n"
+formatLineWithIndex (i, item) = show i ++ ") " ++ item ++ "\n"
 
 formatItems :: [String] -> String
 formatItems = concatMap formatLine
@@ -104,8 +107,17 @@ formatFile (TodoFile _ todos dones) =
     ++ formatItems dones
 
 formatFileWithIndex :: TodoFile -> String
+formatFileWithIndex (TodoFile _ [] []) =
+  "No TODOs for today. Add some?\n\n"
+    ++ "  $ td add Something important\n"
+formatFileWithIndex (TodoFile _ [] dones) =
+  "Accomplished\n"
+    ++ formatItemsWithIndex dones
+formatFileWithIndex (TodoFile _ todos []) =
+  "TODO\n"
+    ++ formatItemsWithIndex todos
 formatFileWithIndex (TodoFile _ todos dones) =
-  "TODOS\n"
+  "TODO\n"
     ++ formatItemsWithIndex todos
     ++ "\nAccomplished\n"
     ++ formatItemsWithIndex dones
@@ -209,12 +221,17 @@ readTodoFile NoFiles = pure NoFiles
 readTodoFile (Error err) = pure $ Error err
 
 readNatWithCap :: Int -> IO Int
+readNatWithCap 1 = do
+  putStrLn $
+    "Only one todo left today, do you want to complete that one? "
+      ++ "(Enter to confirm or Ctrl + c to cancel)"
+  1 <$ getLine
 readNatWithCap cap =
   untilJust $ do
     putStrLn $
       "Please enter a number between 1 and "
         ++ show cap
-        ++ " (or press Ctrl + c to cancel):"
+        ++ " (Ctrl + c to cancel):"
     parseNatWithCap cap <$> getLine
 
 getTodayName :: App FilePath
@@ -227,7 +244,7 @@ addCmd todoFiles newTodo = do
   todayName <- getTodayName
   fileType <- readTodoFile $ todayFile todayName todoFiles
   file <- case addTodo newTodo <$> fileType of
-    HasPrev (TodoFile _ todos dones) -> pure $ TodoFile todayName todos dones
+    HasPrev (TodoFile _ todos _) -> pure $ TodoFile todayName todos []
     HasToday file -> pure file
     Error err -> liftIO $ Exit.die err
     NoFiles -> do
@@ -422,12 +439,36 @@ help = do
   liftIO $ putStrLn "      $ td help"
   liftIO $ putStrLn "      $ td --help"
 
+shortHelp :: App ()
+shortHelp = do
+  liftIO $ putStrLn "TODO (td), a command line tool to handle your daily tasks"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "USAGE:"
+  liftIO $ putStrLn "  $ td [command] [arguments]"
+  liftIO $ putStrLn ""
+  liftIO $ putStrLn "COMMANDS:"
+  liftIO $ putStrLn "  list:"
+  liftIO $ putStrLn "      $ td list"
+  liftIO $ putStrLn "  last:"
+  liftIO $ putStrLn "      $ td last"
+  liftIO $ putStrLn "  add:"
+  liftIO $ putStrLn "      $ td add Do something awesome today"
+  liftIO $ putStrLn "      $ td add 'Do stuff (not that stuff)'"
+  liftIO $ putStrLn "  done:"
+  liftIO $ putStrLn "      $ td done [x]"
+  liftIO $ putStrLn "  standup:"
+  liftIO $ putStrLn "      $ td standup"
+  liftIO $ putStrLn "  version:"
+  liftIO $ putStrLn "      $ td version"
+  liftIO $ putStrLn "  help:"
+  liftIO $ putStrLn "      $ td help"
+
 -- CLI ---
 
 handleCommands :: [FilePath] -> [String] -> App ()
 -- Adds a todo to today's file (creates it if it doesn't exist)
 handleCommands todoFiles ["add"] = do
-  liftIO $ putStrLn "What is it that you are going to do today?"
+  liftIO $ putStrLn "What are going to do today?"
   addCmd todoFiles =<< liftIO getLine
 handleCommands todoFiles ("add" : todo) =
   addCmd todoFiles $ unwords todo
@@ -449,7 +490,11 @@ handleCommands _ ("help" : _) = help
 handleCommands _ ("--help" : _) = help
 -- Lists today's file (creates it if it doesn't exist)
 handleCommands todoFiles ("list" : _) = listCmd todoFiles
-handleCommands todoFiles _ = listCmd todoFiles
+handleCommands todoFiles [] = listCmd todoFiles
+handleCommands _ (cmd : _) = do
+  liftIO $ putStrLnStderr $ "Unknown command '" ++ cmd ++ "'\n"
+  shortHelp
+  liftIO Exit.exitFailure
 
 runCli :: IO ()
 runCli = do
